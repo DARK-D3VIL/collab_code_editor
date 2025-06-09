@@ -1,4 +1,7 @@
 Rails.application.routes.draw do
+  devise_for :users, controllers: {
+    registrations: "users/registrations"
+  }
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
@@ -11,4 +14,18 @@ Rails.application.routes.draw do
 
   # Defines the root path route ("/")
   # root "posts#index"
+  root to: "projects#index"
+  resources :projects do
+    collection do
+      post "join"
+    end
+    resources :project_files, path: "files" do
+      collection do
+        post :create_folder
+      end
+    post :save, on: :member
+    post :commit, on: :member
+    end
+  end
+  mount ActionCable.server => "/cable"
 end

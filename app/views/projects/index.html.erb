@@ -1,0 +1,36 @@
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>Your Projects</h2>
+
+  <!-- Join Project Form -->
+  <div>
+    <%= form_with url: join_projects_path, method: :post, local: true, class: "d-flex align-items-center" do |f| %>
+      <%= f.text_field :project_code, placeholder: "Enter project code", class: "form-control me-2", required: true %>
+      <%= f.submit "Join", class: "btn btn-primary" %>
+    <% end %>
+  </div>
+</div>
+
+<% if @projects.any? %>
+  <div class="row">
+    <% @projects.each do |project| %>
+      <div class="col-md-6">
+        <div class="card mb-3 shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">
+              <%= link_to project.name, project_project_files_path(project), class: "text-decoration-none" %>
+            </h5>
+            <p class="card-text mb-1"><strong>Slug:</strong> <%= project.slug %></p>
+            <p class="card-text mb-0"><strong>Owner:</strong> <%= project.owner.username %></p>
+          </div>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% else %>
+  <p>You haven't joined any projects yet.</p>
+<% end %>
+
+<!-- Link to create new project -->
+<div class="mt-4">
+  <%= link_to "Create New Project", new_project_path, class: "btn btn-success" %>
+</div>

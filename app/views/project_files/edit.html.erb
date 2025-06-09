@@ -1,0 +1,140 @@
+<!-- app/views/project_files/edit.html.erb -->
+<div class="d-flex justify-content-between align-items-center p-2 bg-dark text-white">
+  <h5>Editing: <%= @file.name %> (Branch: <%= @branch_name %>)</h5>
+  <div>
+    <button id="saveBtn" class="btn btn-success me-2">💾 Save</button>
+    <button id="commitBtn" class="btn btn-primary me-2">✅ Save & Commit</button>
+    <button id="exitBtn" class="btn btn-danger">🚪 Exit</button>
+  </div>
+</div>
+
+<div id="editor" style="height: 90vh;"></div>
+
+<%= javascript_importmap_tags %>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+<script type="module">
+  import { createConsumer } from "@rails/actioncable";
+
+  const projectId = <%= @project.id %>;
+  const fileId = <%= @file.id %>;
+  const initialContent = `<%= j @file_content %>`;
+  const language = "<%= @language %>";
+  const branchName = "<%= @branch_name %>";
+  const currentPath = "<%= @file.path %>";
+
+  const saveUrl = `/projects/${projectId}/files/${fileId}/save`;
+  const commitUrl = `/projects/${projectId}/files/${fileId}/commit`;
+  const redirectUrl = `/projects/${projectId}/files?path=${encodeURIComponent(currentPath)}`;
+
+  let editor;
+  let lastContent = initialContent;
+  let isApplyingRemoteUpdate = false;
+
+  require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" } });
+
+  require(["vs/editor/editor.main"], function () {
+    editor = monaco.editor.create(document.getElementById("editor"), {
+      value: initialContent,
+      language: language,
+      automaticLayout: true,
+      theme: "vs-dark"
+    });
+
+    const consumer = createConsumer();
+
+    const channel = consumer.subscriptions.create(
+      {
+        channel: "EditorChannel",
+        project_id: projectId,
+        file_id: fileId,
+        branch: branchName
+      },
+      {
+        received(data) {
+          if (data.content !== lastContent) {
+            isApplyingRemoteUpdate = true;
+            lastContent = data.content;
+
+            const position = editor.getPosition();
+            editor.setValue(data.content);
+            editor.setPosition(position);
+
+            setTimeout(() => {
+              isApplyingRemoteUpdate = false;
+            }, 100);
+          }
+        }
+      }
+    );
+
+    let debounceTimer;
+    editor.onDidChangeModelContent(() => {
+      if (isApplyingRemoteUpdate) return;
+
+      const content = editor.getValue();
+      lastContent = content;
+
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        channel.send({ content: content });
+      }, 300);
+    });
+
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      saveContent(() => {
+        window.location.href = redirectUrl;
+      });
+    });
+
+    document.getElementById("commitBtn").addEventListener("click", () => {
+      const message = prompt("Enter commit message:");
+      if (!message) return;
+
+      saveContent(() => {
+        fetch(commitUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: JSON.stringify({ message: message })
+        })
+          .then(response => response.json())
+          .then(data => {
+            if (data.status === "success") {
+              alert("Committed successfully.");
+              window.location.href = redirectUrl;
+            } else {
+              alert("Commit failed: " + data.message);
+            }
+          });
+      });
+    });
+
+    document.getElementById("exitBtn").addEventListener("click", () => {
+      if (confirm("Are you sure you want to exit without saving?")) {
+        window.location.href = redirectUrl;
+      }
+    });
+
+    function saveContent(callback) {
+      fetch(saveUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({ content: editor.getValue(), path: currentPath })
+      })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === "success") {
+            callback();
+          } else {
+            alert("Save failed: " + data.message);
+          }
+        });
+    }
+  });
+</script>

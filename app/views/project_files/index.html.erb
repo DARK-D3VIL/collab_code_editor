@@ -1,0 +1,42 @@
+<h3>Files in: /<%= @current_path.presence || "." %></h3>
+
+<% unless @current_path.blank? || @current_path == "." %>
+  <%= link_to "⬅️ Back to Parent Folder", project_project_files_path(@project, path: File.dirname(@current_path)), class: "btn btn-outline-secondary mb-3" %>
+<% end %>
+
+
+<%= form_with url: create_folder_project_project_files_path(@project), method: :post, local: true do |f| %>
+  <%= hidden_field_tag :path, @current_path %>
+  <div class="input-group mb-3">
+    <%= f.text_field :folder_name, placeholder: "New Folder Name", class: "form-control", required: true %>
+    <button type="submit" class="btn btn-secondary">Create Folder</button>
+  </div>
+<% end %>
+
+<%= link_to "Create New File", new_project_project_file_path(@project, path: @current_path), class: "btn btn-primary mb-3" %>
+
+<% if @folders.any? %>
+  <h5 class="mt-4">Folders</h5>
+  <ul class="list-group mb-4">
+    <% @folders.each do |folder| %>
+      <% folder_path = File.join(@current_path, folder) %>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <%= link_to folder, project_project_files_path(@project, path: folder_path), class: "fw-bold" %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>
+
+<% if @files.any? %>
+  <h5>Files</h5>
+  <ul class="list-group">
+    <% @files.each do |file| %>
+      <li class="list-group-item d-flex justify-content-between align-items-center">
+        <%= file %>
+        <%= link_to "Edit", edit_project_project_file_path(@project, id: file, path: @current_path), class: "btn btn-sm btn-outline-secondary" %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-muted">No files in this folder.</p>
+<% end %>
