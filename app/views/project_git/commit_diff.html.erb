@@ -1,0 +1,32 @@
+<% content_for :title, "Commit Diff" %>
+
+<div class="d-flex" style="min-height: 100vh;">
+  <!-- Sidebar -->
+  <%= render "partials/sidebar", active: :commits %>
+
+  <!-- Main Content -->
+  <div class="flex-grow-1 p-4 bg-light">
+    <h2 class="mb-4">Diff for Commit: <code><%= params[:sha][0..6] %></code></h2>
+
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <pre class="diff-viewer m-0"><%= raw format_diff(@diff) %></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .diff-viewer {
+    font-family: monospace;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    overflow-x: auto;
+    border-radius: 0.25rem;
+  }
+  .diff-viewer .line { display: block; padding: 0.25rem; }
+  .diff-viewer .line.add    { background-color: #e6ffed; color: #22863a; }
+  .diff-viewer .line.del    { background-color: #ffeef0; color: #b31d28; }
+  .diff-viewer .line.info   { background-color: #f1f8ff; color: #0366d6; font-weight: bold; }
+  .diff-viewer .line.normal { color: #333; }
+</style>

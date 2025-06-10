@@ -14,7 +14,9 @@ class FileCreationService
     begin
       repo_path = Rails.root.join("storage", "projects", "project_#{@project.id}")
       relative_path = Pathname.new(@params[:path].to_s).cleanpath.to_s
-      file_path = File.join(repo_path, relative_path, @params[:name])
+      filename = @params[:name]
+      filename += ".#{@params[:language]}" unless filename.include?(".#{@params[:language]}")
+      file_path = File.join(repo_path, relative_path, filename)
 
       # Ensure we are writing *inside* the project directory
       unless file_path.start_with?(repo_path.to_s)
@@ -25,11 +27,11 @@ class FileCreationService
       File.write(file_path, @params[:content] || "")
 
       # Save metadata to DB
-      @project.files.create!(
-        name: @params[:name],
-        path: relative_path,
-        language: @params[:language]
-      )
+      # @project.files.create!(
+      #   name: filename,
+      #   path: relative_path,
+      #   language: @params[:language]
+      # )
 
       Result.new(true, nil)
     rescue => e

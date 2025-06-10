@@ -1,14 +1,23 @@
 <!-- app/views/project_files/edit.html.erb -->
-<div class="d-flex justify-content-between align-items-center p-2 bg-dark text-white">
-  <h5>Editing: <%= @file.name %> (Branch: <%= @branch_name %>)</h5>
-  <div>
-    <button id="saveBtn" class="btn btn-success me-2">💾 Save</button>
-    <button id="commitBtn" class="btn btn-primary me-2">✅ Save & Commit</button>
-    <button id="exitBtn" class="btn btn-danger">🚪 Exit</button>
-  </div>
-</div>
+<div class="editor-container" style="height: 100vh; display: flex; flex-direction: column; background-color: #f8f9fa;">
+  <!-- Header Bar -->
+  <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-white shadow-sm border-bottom sticky-top" style="z-index: 100;">
+    <h5 class="mb-0">
+      📝 Editing: <strong><%= @file_name %></strong>
+      <span class="text-muted">(<%= @language.capitalize %>)</span>
+      <span class="badge bg-secondary">Branch: <%= @branch_name %></span>
+    </h5>
 
-<div id="editor" style="height: 90vh;"></div>
+    <div class="d-flex gap-2">
+      <button id="saveBtn" class="btn btn-outline-success" title="Save without commit">💾 Save</button>
+      <button id="commitBtn" class="btn btn-outline-primary" title="Save and commit changes">✅ Commit</button>
+      <button id="exitBtn" class="btn btn-outline-danger" title="Exit without saving">🚪 Exit</button>
+    </div>
+  </div>
+
+  <!-- Monaco Editor -->
+  <div id="editor" style="flex-grow: 1; border-top: 1px solid #ddd;"></div>
+</div>
 
 <%= javascript_importmap_tags %>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
@@ -17,14 +26,14 @@
   import { createConsumer } from "@rails/actioncable";
 
   const projectId = <%= @project.id %>;
-  const fileId = <%= @file.id %>;
-  const initialContent = `<%= j @file_content %>`;
+  const fileName = "<%= @file_name %>";
+  const initialContent = `<%= raw @file_content %>`;
   const language = "<%= @language %>";
   const branchName = "<%= @branch_name %>";
-  const currentPath = "<%= @file.path %>";
+  const currentPath = "<%= @file_path %>";
 
-  const saveUrl = `/projects/${projectId}/files/${fileId}/save`;
-  const commitUrl = `/projects/${projectId}/files/${fileId}/commit`;
+  const saveUrl = `/projects/${projectId}/files/${encodeURIComponent(fileName)}/save?path=${encodeURIComponent(currentPath)}`;
+  const commitUrl = `/projects/${projectId}/files/${encodeURIComponent(fileName)}/commit?path=${encodeURIComponent(currentPath)}`;
   const redirectUrl = `/projects/${projectId}/files?path=${encodeURIComponent(currentPath)}`;
 
   let editor;
@@ -38,7 +47,11 @@
       value: initialContent,
       language: language,
       automaticLayout: true,
-      theme: "vs-dark"
+      theme: "vs",
+      fontSize: 14,
+      minimap: { enabled: false },
+      wordWrap: "on",
+      padding: { top: 10, bottom: 10 },
     });
 
     const consumer = createConsumer();
@@ -47,7 +60,7 @@
       {
         channel: "EditorChannel",
         project_id: projectId,
-        file_id: fileId,
+        file_id: fileName,
         branch: branchName
       },
       {
@@ -103,10 +116,10 @@
           .then(response => response.json())
           .then(data => {
             if (data.status === "success") {
-              alert("Committed successfully.");
+              alert("✅ Committed successfully.");
               window.location.href = redirectUrl;
             } else {
-              alert("Commit failed: " + data.message);
+              alert("❌ Commit failed: " + data.message);
             }
           });
       });
@@ -132,7 +145,7 @@
           if (data.status === "success") {
             callback();
           } else {
-            alert("Save failed: " + data.message);
+            alert("❌ Save failed: " + data.message);
           }
         });
     }

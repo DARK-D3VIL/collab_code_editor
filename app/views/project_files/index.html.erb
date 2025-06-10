@@ -1,42 +1,121 @@
-<h3>Files in: /<%= @current_path.presence || "." %></h3>
+<div class="container">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="mb-1">📁 Contents of Project</h2>
+      <p class="text-muted mb-0">
+        Current Branch: <span class="badge bg-success"><%= @current_branch %></span>
+      </p>
+    </div>
 
-<% unless @current_path.blank? || @current_path == "." %>
-  <%= link_to "⬅️ Back to Parent Folder", project_project_files_path(@project, path: File.dirname(@current_path)), class: "btn btn-outline-secondary mb-3" %>
-<% end %>
-
-
-<%= form_with url: create_folder_project_project_files_path(@project), method: :post, local: true do |f| %>
-  <%= hidden_field_tag :path, @current_path %>
-  <div class="input-group mb-3">
-    <%= f.text_field :folder_name, placeholder: "New Folder Name", class: "form-control", required: true %>
-    <button type="submit" class="btn btn-secondary">Create Folder</button>
+    <% if @has_changes %>
+      <button id="commitBtn" class="btn btn-outline-primary" title="Save and commit changes">✅ Commit</button>
+    <% end %>
   </div>
-<% end %>
 
-<%= link_to "Create New File", new_project_project_file_path(@project, path: @current_path), class: "btn btn-primary mb-3" %>
+  <% unless @current_path.blank? || @current_path == "." %>
+    <div class="mb-3">
+      <%= link_to "⬅️ Parent Folder", project_project_files_path(@project, path: File.dirname(@current_path)), class: "btn btn-outline-secondary" %>
+    </div>
+  <% end %>
 
-<% if @folders.any? %>
-  <h5 class="mt-4">Folders</h5>
-  <ul class="list-group mb-4">
-    <% @folders.each do |folder| %>
-      <% folder_path = File.join(@current_path, folder) %>
-      <li class="list-group-item d-flex justify-content-between align-items-center">
-        <%= link_to folder, project_project_files_path(@project, path: folder_path), class: "fw-bold" %>
-      </li>
+  <!-- Add Folder Form -->
+  <div class="mb-4">
+    <%= form_with url: create_folder_project_project_files_path(@project), method: :post, local: true, class: "d-flex gap-2 align-items-center" do |f| %>
+      <%= hidden_field_tag :path, @current_path %>
+      <%= f.text_field :folder_name, placeholder: "New Folder Name", class: "form-control", required: true %>
+      <%= f.submit "➕ Add Folder", class: "btn btn-secondary" %>
     <% end %>
-  </ul>
-<% end %>
+  </div>
 
-<% if @files.any? %>
-  <h5>Files</h5>
-  <ul class="list-group">
-    <% @files.each do |file| %>
-      <li class="list-group-item d-flex justify-content-between align-items-center">
-        <%= file %>
-        <%= link_to "Edit", edit_project_project_file_path(@project, id: file, path: @current_path), class: "btn btn-sm btn-outline-secondary" %>
-      </li>
-    <% end %>
-  </ul>
-<% else %>
-  <p class="text-muted">No files in this folder.</p>
+  <!-- Folder Section -->
+  <% if @folders.any? %>
+    <h5 class="mb-3">📂 Folders</h5>
+    <ul class="list-group mb-4">
+      <% @folders.each do |folder| %>
+        <% folder_path = File.join(@current_path, folder) %>
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          <%= link_to folder, project_project_files_path(@project, path: folder_path), class: "fw-bold text-dark text-decoration-none" %>
+          <%= button_to "🗑️", destroy_folder_project_project_files_path(@project, folder: folder, path: @current_path), method: :delete, data: { confirm: "Are you sure?" }, class: "btn btn-sm btn-outline-danger" %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-muted">No folders in this directory.</p>
+  <% end %>
+
+  <!-- Files Section -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <h5 class="mb-0">📁 Files</h5>
+      <%= link_to "➕ Add File", new_project_project_file_path(@project, path: @current_path), class: "btn btn-sm btn-primary" %>
+    </div>
+
+    <div class="card-body p-0">
+      <% visible_files = @files.reject { |f| f.downcase == "readme.md" } %>
+
+      <% if visible_files.any? %>
+        <ul class="list-group list-group-flush">
+          <% visible_files.each do |file_name| %>
+            <% full_path = Rails.root.join("storage", "projects", "project_#{@project.id}", @current_path, file_name) %>
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+              <div>
+                <strong><%= file_name %></strong>
+                <% if File.exist?(full_path) %>
+                  <small class="text-muted d-block">Created: <%= File.ctime(full_path).strftime("%b %d, %Y %H:%M") %></small>
+                <% end %>
+              </div>
+
+              <div class="d-flex gap-2">
+                <%= link_to "✏️ Edit",
+                            edit_project_project_file_path(@project, id: file_name, path: @current_path),
+                            class: "btn btn-sm btn-outline-primary" %>
+
+                <%= button_to "🗑️ Delete",
+                              destroy_file_project_project_files_path(@project, file: file_name, path: @current_path),
+                              method: :delete,
+                              data: { confirm: "Are you sure you want to delete #{file_name}?" },
+                              class: "btn btn-sm btn-outline-danger" %>
+              </div>
+            </li>
+          <% end %>
+        </ul>
+      <% else %>
+        <div class="p-3 text-muted">
+          No files in this folder.
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>
+
+<% if @has_changes %>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const commitBtn = document.getElementById("commitBtn");
+
+      commitBtn.addEventListener("click", () => {
+        const message = prompt("Enter commit message:");
+        if (!message) return;
+
+        fetch("<%= commit_all_project_project_files_path(@project) %>", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+          },
+          body: JSON.stringify({ message: message })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.status === "success") {
+            alert("✅ Committed successfully.\nSHA: " + data.sha.slice(0, 7));
+            window.location.reload();
+          } else {
+            alert("❌ Commit failed: " + data.message);
+          }
+        })
+        .catch(err => alert("⚠️ Commit request failed."));
+      });
+    });
+  </script>
 <% end %>

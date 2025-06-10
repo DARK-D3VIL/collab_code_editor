@@ -1,0 +1,55 @@
+<% content_for :title, "Branches" %>
+
+<div class="d-flex" style="min-height: 100vh;">
+  <!-- Sidebar -->
+  <%= render "partials/sidebar", active: :branches %>
+
+  <!-- Main Content -->
+  <div class="flex-grow-1 p-4 bg-light">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <h2 class="mb-0">Branches</h2>
+    </div>
+
+    <!-- Branch creation form -->
+    <div class="mb-4">
+      <%= form_with url: project_git_branches_path(@project), method: :post, local: true do |f| %>
+        <div class="input-group">
+          <%= f.text_field :name, class: "form-control", placeholder: "Enter new branch name..." %>
+          <button class="btn btn-primary" type="submit">Create</button>
+        </div>
+      <% end %>
+    </div>
+
+    <!-- Branch list table -->
+    <div class="card shadow-sm">
+      <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Name</th>
+              <th>Created</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% @branches.each do |branch| %>
+              <tr>
+                <td><%= branch.name %></td>
+                <td><%= branch.created_at.strftime("%Y-%m-%d") %></td>
+                <td class="d-flex gap-2">
+                  <%= button_to "Switch", project_git_switch_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-success" %>
+
+                  <% unless branch.name == "main" %>
+                    <%= button_to "Merge to Main", project_git_merge_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-warning" %>
+                  <% end %>
+
+                  <%= link_to "View Commits", project_git_branch_commits_path(@project, branch), class: "btn btn-sm btn-outline-info" %>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>

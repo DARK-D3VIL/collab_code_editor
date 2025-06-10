@@ -68,7 +68,7 @@ class ProjectsController < ApplicationController
         current_branch: main_branch
       )
 
-      redirect_to @project, notice: "Project created successfully!"
+      redirect_to project_project_files_path(@project), notice: "Project created successfully!"
     else
       render :new
     end
@@ -82,27 +82,48 @@ class ProjectsController < ApplicationController
   end
 
   def join
-    project = Project.find_by(slug: params[:project_code])
+    @project = Project.find_by(slug: params[:project_code])
 
-    if project.nil?
+    if @project.nil?
       redirect_to projects_path, alert: "Project not found with that code."
       return
     end
 
-    if project.users.include?(current_user)
-      redirect_to project_path(project), notice: "You are already a member of this project."
+    if @project.users.include?(current_user)
+      redirect_to project_path(), notice: "You are already a member of this project."
       return
     end
 
-    main_branch = project.branches.find_by(name: "main")
+    main_branch = @project.branches.find_by(name: "main")
 
     ProjectMembership.create!(
       user: current_user,
-      project: project,
+      project: @project,
       current_branch: main_branch
     )
 
-    redirect_to project_path(project), notice: "Successfully joined the project."
+    redirect_to project_project_files_path(@project), notice: "Successfully joined the project."
+  end
+
+  def destroy
+    @project = Project.find(params[:id])
+
+    unless @project.owner_id == current_user.id
+      redirect_to projects_path, alert: "Only the owner can delete the project."
+      return
+    end
+
+    # Delete associated records manually (if no `dependent: :destroy`)
+    @project.project_memberships.destroy_all
+    @project.branches.destroy_all
+    @project.files.destroy_all
+
+    repo_path = Rails.root.join("storage", "projects", "project_#{@project.id}")
+    FileUtils.rm_rf(repo_path) if Dir.exist?(repo_path)
+
+    @project.destroy
+
+    redirect_to projects_path, notice: "Project deleted successfully."
   end
 
   private

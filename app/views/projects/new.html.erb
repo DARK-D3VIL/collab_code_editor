@@ -1,7 +1,22 @@
-<h2>New Project</h2>
+<div class="container py-5" style="max-width: 600px;">
+  <div class="card shadow-sm border-0">
+    <div class="card-body">
+      <h2 class="mb-4 text-center fw-bold">Create New Project</h2>
 
-<%= form_with model: @project, local: true do |f| %>
-  <%= f.label :name %>
-  <%= f.text_field :name %>
-  <%= f.submit "Create Project" %>
-<% end %>
+      <%= form_with model: @project, local: true do |f| %>
+        <div class="mb-3">
+          <%= f.label :name, "Project Name", class: "form-label fw-semibold" %>
+          <%= f.text_field :name, class: "form-control", placeholder: "Enter project name", autofocus: true, required: true %>
+        </div>
+
+        <div class="d-grid mt-4">
+          <%= f.submit "Create Project", class: "btn btn-success btn-lg" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="text-center mt-3">
+    <%= link_to "⬅ Back to Projects", projects_path, class: "text-decoration-none text-secondary" %>
+  </div>
+</div>

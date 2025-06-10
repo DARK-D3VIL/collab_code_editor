@@ -16,11 +16,16 @@ class ProjectFilesController < ApplicationController
       redirect_to project_project_files_path(@project), alert: "Invalid folder path" and return
     end
 
+    @has_changes = Dir.chdir(project_repo_path) do
+      `git status --porcelain`.present?
+    end
+
     entries = FileBrowserService.new(@absolute_path).list_entries
     @folders = entries.select { |entry| File.directory?(@absolute_path.join(entry)) }
     @files   = entries.select   { |entry| File.file?(@absolute_path.join(entry)) }
 
     @project_repo_path = @repo_path
+    @current_branch = current_branch_for_project&.name || "main"
   end
 
   def new
@@ -30,23 +35,25 @@ class ProjectFilesController < ApplicationController
   def edit
     @project = current_user.projects.find(params[:project_id])
     @current_path = params[:path].to_s
-    file_name = params[:id]
+    @file_name = params[:id]
 
-    @file = @project.files.find_by(name: file_name, path: @current_path)
-    unless @file
+    repo_path = Rails.root.join("storage", "projects", "project_#{@project.id}")
+    full_path = repo_path.join(@current_path, @file_name)
+
+    unless File.exist?(full_path)
       redirect_to project_project_files_path(@project, path: @current_path), alert: "File not found." and return
     end
 
-    repo_path = Rails.root.join("storage", "projects", "project_#{@project.id}")
-    full_path = repo_path.join(@current_path, @file.name)
-    unless File.exist?(full_path)
-      redirect_to project_project_files_path(@project, path: @current_path), alert: "File does not exist in storage." and return
-    end
+    unsaved_path = "#{full_path}.unsaved"
+  @file_content = if File.exist?(unsaved_path)
+                    File.read(unsaved_path)
+  else
+    File.read(full_path)
+  end
 
-    @file_content = File.read(full_path)
     @branch_name = current_branch_for_project.name
 
-    # Use stored language from DB and map to Monaco expected
+    ext = File.extname(@file_name).delete(".")
     @language = {
       "rb" => "ruby",
       "js" => "javascript",
@@ -56,20 +63,21 @@ class ProjectFilesController < ApplicationController
       "py" => "python",
       "java" => "java",
       "md" => "markdown"
-    }[@file.language] || "plaintext"
+    }[ext] || "plaintext"
   end
-
 
   def save
     @project = current_user.projects.find(params[:project_id])
-    @file = @project.files.find(params[:id])
-    @path = params[:path]
+    file_name = params[:id]
+    @path = params[:path].to_s
 
     repo_path = Rails.root.join("storage", "projects", "project_#{@project.id}")
-    file_path = repo_path.join(@path, @file.name)
+    file_path = repo_path.join(@path, file_name)
 
     if File.exist?(file_path)
-      File.write(file_path, params[:content])
+      decoded_content = CGI.unescapeHTML(params[:content])
+      File.write(file_path, decoded_content)
+      File.write("#{file_path}.unsaved", decoded_content)
       respond_to do |format|
         format.json { render json: { status: "success" } }
         format.html { redirect_to project_project_files_path(@project, path: @path), notice: "File saved." }
@@ -101,59 +109,59 @@ class ProjectFilesController < ApplicationController
       redirect_to project_project_files_path(@project, path: @current_path), alert: result.error
     end
   end
-
   def commit
     @path = params[:path]
     commit_message = params[:message]
 
-    repo_path = project_repo_path
-    commit_sha = nil
-
-    Dir.chdir(repo_path) do
-      repo = Rugged::Repository.new(repo_path)
-
-      # Stage changes
-      index = repo.index
-      index.reload
-      index.add_all(@path)
-      index.write
-      tree_oid = index.write_tree(repo)
-
-      # Get the current branch ref and parent commit
-      branch = current_branch_for_project.name
-      branch_ref = "refs/heads/#{branch}"
-      parent_commit = repo.empty? ? [] : [repo.head.target]
-
-      author = {
-        email: current_user.email,
-        name: current_user.username.presence || current_user.email.split('@').first,
-        time: Time.now
-      }
-
-      # Create commit
-      commit_sha = Rugged::Commit.create(repo,
-        author: author,
-        committer: author,
-        message: commit_message,
-        parents: parent_commit,
-        tree: tree_oid,
-        update_ref: branch_ref
-      )
-
-      # Save commit in DB
-      Commit.create!(
-        user_id: current_user.id,
-        project_id: @project.id,
-        branch_id: current_branch_for_project.id,
-        message: commit_message,
-        sha: commit_sha,
-        parent_sha: parent_commit.first&.oid
-      )
-    end
-
+    commit_sha = commit_changes(path: @path, message: commit_message)
     render json: { status: "success", sha: commit_sha }
+
   rescue => e
     render json: { status: "error", message: "Commit failed: #{e.message}" }, status: 500
+  end
+
+  def commit_all
+    message = params[:message]
+
+    commit_sha = commit_changes(message: message)
+    render json: { status: "success", sha: commit_sha }
+
+  rescue => e
+    render json: { status: "error", message: "Commit failed: #{e.message}" }, status: 500
+  end
+
+  def destroy_file
+    file = params[:file]
+    path = params[:path]
+    abs_path = project_repo_path.join(path, file)
+
+    if File.exist?(abs_path)
+      File.delete(abs_path)
+      # @project.files.where(name: file, path: path).destroy_all
+      sha = commit_changes(path: path, message: "Deleted #{file}")
+      flash[:notice] = sha ? "File deleted and committed." : "File deleted, but commit failed."
+    else
+      flash[:alert] = "File not found."
+    end
+
+    redirect_to project_project_files_path(@project, path: path)
+  end
+
+  def destroy_folder
+    folder = params[:folder]
+    path = params[:path]
+    abs_path = project_repo_path.join(path, folder)
+
+    if abs_path.exist? && abs_path.directory?
+      FileUtils.rm_rf(abs_path)
+      @project.files.where("path LIKE ?", "#{File.join(path, folder)}%").destroy_all
+      sha = commit_changes(path: path, message: "Deleted #{folder}")
+      flash[:notice] = sha ? "Folder deleted and committed." : "Folder deleted, but commit failed."
+    else
+      flash[:alert] = "Folder not found."
+    end
+
+    redirect_to project_project_files_path(@project, path: path)
   end
 
   private
@@ -187,13 +195,12 @@ class ProjectFilesController < ApplicationController
 
     return unless branch.present?
 
-    Dir.chdir(repo_path) do
-      current = `git rev-parse --abbrev-ref HEAD`.strip
-      if current != branch
-        `git fetch`
-        system("git checkout #{branch}") || raise("Failed to switch to branch: #{branch}")
-      end
-    end
+    repo = Rugged::Repository.new(repo_path.to_s)
+
+    rugged_branch = repo.branches[branch.name]
+    raise "Branch '#{branch.name}' not found" unless rugged_branch
+
+    repo.checkout(rugged_branch.name, strategy: :force)
   rescue => e
     redirect_to project_projects_path, alert: "Git error: #{e.message}"
   end
@@ -208,5 +215,72 @@ class ProjectFilesController < ApplicationController
 
   def latest_commit_sha
     Commit.where(branch_id: current_branch).order(created_at: :desc).limit(1).pluck(:sha).first
+  end
+
+  def commit_changes(path: nil, message:)
+    repo_path = project_repo_path
+    commit_sha = nil
+
+    Dir.chdir(repo_path) do
+      # Step 1: Restore any unsaved files
+      restore_unsaved_files!(repo_path, path)
+
+      repo = Rugged::Repository.new(repo_path)
+
+      index = repo.index
+      index.reload
+      path.present? ? index.add_all(path) : index.add_all
+      index.write
+      tree_oid = index.write_tree(repo)
+
+      branch = current_branch_for_project.name
+      branch_ref = "refs/heads/#{branch}"
+      repo.checkout(branch_ref)
+
+      parent_commit = repo.empty? ? [] : [ repo.head.target ]
+
+      author = {
+        email: current_user.email,
+        name: current_user.username.presence || current_user.email.split("@").first,
+        time: Time.now
+      }
+
+      commit_sha = Rugged::Commit.create(repo,
+        author: author,
+        committer: author,
+        message: message,
+        parents: parent_commit,
+        tree: tree_oid,
+        update_ref: branch_ref
+      )
+
+      Commit.create!(
+        user_id: current_user.id,
+        project_id: @project.id,
+        branch_id: current_branch_for_project.id,
+        message: message,
+        sha: commit_sha,
+        parent_sha: parent_commit.first&.oid
+      )
+    end
+
+    commit_sha
+  rescue => e
+    Rails.logger.error("Commit failed: #{e.message}")
+    raise e
+  end
+
+  def restore_unsaved_files!(repo_path, relative_path = nil)
+    base_dir = relative_path.present? ? File.join(repo_path, relative_path) : repo_path
+
+    Dir.glob("#{base_dir}/**/*.unsaved").each do |unsaved_path|
+      original_path = unsaved_path.sub(/\.unsaved$/, '')
+
+      # Only restore if the original exists (or optionally, always create it)
+      if File.exist?(original_path)
+        File.write(original_path, File.read(unsaved_path))
+        File.delete(unsaved_path)
+      end
+    end
   end
 end

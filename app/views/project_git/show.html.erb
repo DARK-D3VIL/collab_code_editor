@@ -1,0 +1,56 @@
+<% content_for :title, "Git Commit Graph" %>
+
+<div class="d-flex" style="min-height: 100vh;">
+  <%= render "partials/sidebar", active: :history %>
+
+  <div class="flex-grow-1 p-4 bg-light">
+    <h4 class="mb-4">Git Commit Graph</h4>
+
+    <div class="border rounded p-3 bg-white shadow-sm">
+      <div id="gitGraph" style="height: 600px; overflow: auto; white-space: nowrap;"></div>
+    </div>
+  </div>
+</div>
+
+<style>
+  #gitGraph svg {
+    max-width: 100%;
+  }
+</style>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const graphContainer = document.getElementById("gitGraph");
+    const gitgraph = GitgraphJS.createGitgraph(graphContainer);
+
+    const branches = {};
+    const commits = <%= raw @graph_commits.to_json %>;
+
+    commits.forEach(commit => {
+      const branchName = commit.branch;
+
+      if (!branches[branchName]) {
+        if (commit.parents.length === 0) {
+          branches[branchName] = gitgraph.branch(branchName);
+        } else {
+          const parentCommit = commits.find(c => c.sha === commit.parents[0]);
+          const parentBranch = parentCommit ? parentCommit.branch : "main";
+          branches[branchName] = branches[parentBranch]
+            ? branches[parentBranch].branch(branchName)
+            : gitgraph.branch(branchName);
+        }
+      }
+
+      branches[branchName].commit({
+        subject: commit.message,
+        author: commit.author,
+        hash: commit.sha.slice(0, 7),
+        style: {
+          dot: {
+            color: "#007bff"
+          }
+        }
+      });
+    });
+  });
+</script>

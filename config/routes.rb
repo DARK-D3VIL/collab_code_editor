@@ -19,13 +19,29 @@ Rails.application.routes.draw do
     collection do
       post "join"
     end
-    resources :project_files, path: "files" do
+
+    resources :project_files, path: "files", param: :id, constraints: { id: /[^\/]+/ }  do
       collection do
         post :create_folder
+        delete :destroy_file
+        delete :destroy_folder
+        post :commit_all
       end
-    post :save, on: :member
-    post :commit, on: :member
+      member do
+        get :edit
+        post :save
+        post :commit
+      end
     end
+    get "git", to: "project_git#show", as: :git
+    get    "git/branches",                  to: "project_git#branches",       as: :git_branches
+    post   "git/branches",                  to: "project_git#create_branch"
+    post   "git/branches/:id/switch",       to: "project_git#switch",         as: :git_switch_branch
+    get    "git/branches/:id/commits",      to: "project_git#commits",        as: :git_branch_commits
+    get    "git/branches/:id/commit/:sha",  to: "project_git#commit_diff",    as: :git_branch_commit
+    post   "git/branches/:id/rollback",     to: "project_git#rollback",       as: :git_branch_rollback
+    post   "git/branches/:id/merge",        to: "project_git#merge",          as: :git_merge_branch
   end
+
   mount ActionCable.server => "/cable"
 end

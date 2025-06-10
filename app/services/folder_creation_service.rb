@@ -11,6 +11,7 @@ class FolderCreationService
 
     new_folder = @base_path.join(@folder_name)
     FileUtils.mkdir_p(new_folder)
+    FileUtils.touch(new_folder.join(".gitkeep"))
 
     Result.new(true, nil)
   rescue => e
