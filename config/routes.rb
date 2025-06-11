@@ -47,6 +47,12 @@ Rails.application.routes.draw do
     post   "git/branches/:id/rollback",     to: "project_git#rollback",       as: :git_branch_rollback
     post   "git/branches/:id/merge",        to: "project_git#merge",          as: :git_merge_branch
   end
+  match "/404", to: "errors#not_found", via: :all
+  match "/422", to: "errors#unprocessable_entity", via: :all
+  match "/500", to: "errors#internal_server_error", via: :all
+
+  # Catch-all route fallback
+  match "*path", to: "errors#not_found", via: :all
 
   mount ActionCable.server => "/cable"
 end
