@@ -71,3 +71,7 @@ gem "bootstrap"
 gem "simple_form"
 
 gem "importmap-rails", "~> 2.1"
+# Gemfile
+gem "omniauth-github"
+gem "octokit" # For GitHub API
+gem "omniauth-rails_csrf_protection"

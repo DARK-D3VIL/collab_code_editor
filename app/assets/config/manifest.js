@@ -4,3 +4,5 @@
 //= link channels/editor_channel.js
 //= link channels/consumer.js
 //= link channels/index.js
+//= link @rails--actioncable.js
+//= link @rails--ujs.js

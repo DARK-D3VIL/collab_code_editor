@@ -66,6 +66,31 @@ class ProjectFilesController < ApplicationController
     }[ext] || "plaintext"
   end
 
+  # def change_annotations
+  #   @project = current_user.projects.find(params[:project_id])
+  #   file_path = File.join(params[:path] || "", params[:id])
+
+  #   changes = DocumentChange.for_file(@project.id, file_path, current_branch_for_project.name)
+  #                         .includes(:user)
+  #                         .recent
+  #                         .limit(50)
+
+  #   annotations = changes.map do |change|
+  #     {
+  #       id: change.id,
+  #       user_name: change.author_name,
+  #       user_color: change.author_color,
+  #       start_line: change.start_line,
+  #       end_line: change.end_line,
+  #       operation_type: change.operation_type,
+  #       content: change.content,
+  #       timestamp: change.created_at.to_i,
+  #       relative_time: time_ago_in_words(change.created_at)
+  #     }
+  #   end
+  #   render json: { annotations: annotations }
+  # end
+
   def save
     @project = current_user.projects.find(params[:project_id])
     file_name = params[:id]
@@ -274,13 +299,27 @@ class ProjectFilesController < ApplicationController
     base_dir = relative_path.present? ? File.join(repo_path, relative_path) : repo_path
 
     Dir.glob("#{base_dir}/**/*.unsaved").each do |unsaved_path|
-      original_path = unsaved_path.sub(/\.unsaved$/, '')
+      original_path = unsaved_path.sub(/\.unsaved$/, "")
 
       # Only restore if the original exists (or optionally, always create it)
       if File.exist?(original_path)
         File.write(original_path, File.read(unsaved_path))
         File.delete(unsaved_path)
       end
+    end
+  end
+
+  def time_ago_in_words(time)
+    seconds = Time.current - time
+    case seconds
+    when 0..59
+      "#{seconds.to_i} seconds ago"
+    when 60..3599
+      "#{(seconds / 60).to_i} minutes ago"
+    when 3600..86399
+      "#{(seconds / 3600).to_i} hours ago"
+    else
+      "#{(seconds / 86400).to_i} days ago"
     end
   end
 end

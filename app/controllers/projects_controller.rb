@@ -19,6 +19,8 @@ class ProjectsController < ApplicationController
 
       # 2. Initialize Git repo
       repo = Rugged::Repository.init_at(repo_path.to_s)
+      repo.config["user.name"] = current_user.username
+      repo.config["user.email"] = current_user.email
 
       # 3. Create initial commit and main branch
       oid = repo.write("Initial README", :blob)  # Add some content

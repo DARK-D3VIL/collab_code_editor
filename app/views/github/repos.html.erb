@@ -1,0 +1,44 @@
+<div class="container py-5">
+  <h2 class="mb-5 fw-bold text-center text-primary">🚀 Clone a GitHub Repository</h2>
+
+  <% if @repos.present? %>
+    <div class="row row-cols-1 row-cols-md-2 g-4">
+      <% @repos.each do |repo| %>
+        <div class="col">
+          <%= form_with url: github_clone_path, method: :post, class: "h-100" do %>
+            <%= hidden_field_tag :repo_name, repo["name"] %>
+            <%= hidden_field_tag :clone_url, repo["clone_url"] %>
+
+            <div class="card shadow-sm border-0 h-100">
+              <div class="card-body d-flex flex-column justify-content-between">
+                <div>
+                  <h5 class="card-title text-dark">
+                    <%= repo["full_name"] %>
+                  </h5>
+                  <% if repo["description"].present? %>
+                    <p class="card-text text-muted small">
+                      <%= truncate(repo["description"], length: 100) %>
+                    </p>
+                  <% end %>
+                </div>
+
+                <div class="mt-auto d-flex justify-content-between align-items-center">
+                  <span class="badge bg-secondary text-uppercase">
+                    ⭐ <%= repo["stargazers_count"] %> | 🛠️ <%= repo["language"] || "Unknown" %>
+                  </span>
+                  <button type="submit" class="btn btn-outline-primary btn-sm">
+                    Clone 🔽
+                  </button>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="alert alert-info text-center">
+      No repositories found. Please ensure your GitHub account has accessible repositories.
+    </div>
+  <% end %>
+</div>

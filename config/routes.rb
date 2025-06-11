@@ -1,6 +1,7 @@
 Rails.application.routes.draw do
   devise_for :users, controllers: {
-    registrations: "users/registrations"
+    registrations: "users/registrations",
+    omniauth_callbacks: "users/omniauth_callbacks"
   }
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
@@ -15,6 +16,9 @@ Rails.application.routes.draw do
   # Defines the root path route ("/")
   # root "posts#index"
   root to: "projects#index"
+
+  get "/github_repos", to: "github#repos"
+  post "/github_clone", to: "github#clone", as: :github_clone
   resources :projects do
     collection do
       post "join"
@@ -28,6 +32,7 @@ Rails.application.routes.draw do
         post :commit_all
       end
       member do
+        # get :change_annotations
         get :edit
         post :save
         post :commit

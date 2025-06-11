@@ -13,6 +13,17 @@
           <%= f.submit "Create Project", class: "btn btn-success btn-lg" %>
         </div>
       <% end %>
+
+      <hr class="my-4">
+
+      <div class="text-center">
+        <p class="text-muted">OR</p>
+        <% if current_user.github_token.present? %>
+          <%= link_to "🔗 Clone from GitHub", github_repos_path, class: "btn btn-outline-dark btn-lg w-100" %>
+        <% else %>
+          <%= button_to "🔗 Connect with GitHub", user_github_omniauth_authorize_path, class: "btn btn-outline-dark btn-lg w-100" %>
+        <% end %>
+      </div>
     </div>
   </div>
 
