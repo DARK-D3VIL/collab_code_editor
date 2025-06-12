@@ -6,26 +6,36 @@ class User < ApplicationRecord
        :omniauthable, omniauth_providers: [ :github ]
 
   def self.from_omniauth(auth)
-    # Try finding by provider + uid
-    user = find_by(provider: auth.provider, uid: auth.uid)
+    email = auth.info.email
+    github_uid = auth.uid
+    github_token = auth.credentials.token
+    provider = auth.provider
 
-    # If not found, fallback to existing user by email
-    user ||= find_by(email: auth.info.email)
+    # Match by UID and provider (user has already connected GitHub)
+    user = find_by(provider: provider, uid: github_uid)
 
-    # If still not found, initialize a new user
-    user ||= User.new
+    if user
+      user.update!(github_token: github_token) # refresh token if needed
+      return user
+    end
 
-    # Update attributes
-    user.provider = auth.provider
-    user.uid = auth.uid
-    user.email ||= auth.info.email
-    user.username ||= auth.info.nickname
-    user.password = Devise.friendly_token[0, 20] if user.encrypted_password.blank?
-    user.github_token = auth.credentials.token
+    # If not found, check if user with same email exists (manual sign-up or different OAuth)
+    user = find_by(email: email)
 
-    # Save changes (or re-raise error)
-    user.save!
-    user
+    if user
+      # Prevent GitHub signup if email is already used
+      raise Devise::OmniauthCallbacksController::AccountTakenError.new("Email already associated with an account. Please sign in manually and connect GitHub from settings.")
+    end
+
+    # Otherwise, create new user with GitHub data
+    create!(
+      provider: provider,
+      uid: github_uid,
+      email: email,
+      username: auth.info.nickname,
+      password: Devise.friendly_token[0, 20],
+      github_token: github_token
+    )
   end
 
   validates :username, presence: true

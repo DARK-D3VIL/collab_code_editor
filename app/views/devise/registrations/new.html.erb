@@ -31,10 +31,21 @@
                     input_html: { autocomplete: "new-password", class: "form-control" } %>
       </div>
 
-      <div class="d-grid">
+      <div class="d-grid mb-3">
         <%= f.button :submit, "Sign up", class: "btn btn-primary" %>
       </div>
     <% end %>
+
+    <!-- GitHub OAuth Sign Up Button -->
+    <div class="d-grid mb-3">
+      <%= button_to user_github_omniauth_authorize_path,
+                    method: :post,
+                    form: { class: "m-0" },
+                    class: "btn btn-dark w-100 d-flex justify-content-center align-items-center gap-2" do %>
+        <i class="bi bi-github"></i>
+        Sign up with GitHub
+      <% end %>
+    </div>
 
     <hr class="my-3">
     <p class="text-center small">
