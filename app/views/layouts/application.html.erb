@@ -24,57 +24,66 @@
   <body>
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm sticky-top">
-  <div class="container">
-    <%= link_to "💻 Collab Editor", root_path, class: "navbar-brand fw-semibold" %>
+      <div class="container">
+        <!-- Brand -->
+        <%= link_to root_path, class: "navbar-brand fw-bold text-secondary d-flex align-items-center" do %>
+          <i class="bi bi-terminal me-2 text-muted"></i>Collab Editor
+        <% end %>
 
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
-      <span class="navbar-toggler-icon"></span>
-    </button>
+        <!-- Toggler for mobile -->
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+          <span class="navbar-toggler-icon"></span>
+        </button>
 
-    <div class="collapse navbar-collapse" id="navbarContent">
-      <!-- Left-side Navigation -->
-      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-        <% if current_user %>
-          <li class="nav-item">
-            <%= link_to "Projects", projects_path, class: "nav-link #{current_page?(projects_path) ? 'fw-semibold' : ''}" %>
-          </li>
-
-          <% if controller_name.in?(%w[project_files project_git project_members]) && defined?(@project) %>
-            <li class="nav-item">
-              <%= link_to "Files", project_project_files_path(@project, path: ""), class: "nav-link #{controller_name == 'project_files' ? 'fw-semibold' : ''}" %>
-            </li>
-
-            <li class="nav-item">
-              <%= link_to "Git", project_git_path(@project), class: "nav-link #{controller_name == 'project_git' ? 'fw-semibold' : ''}" %>
-            </li>
-
-            <% if current_user == @project.owner %>
+        <!-- Nav Links -->
+        <div class="collapse navbar-collapse" id="navbarContent">
+          <!-- Left-side Navigation -->
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <% if current_user %>
               <li class="nav-item">
-                <%= link_to "Manage Members", project_project_members_path(@project), class: "nav-link #{controller_name == 'project_members' ? 'fw-semibold' : ''}" %>
+                <%= link_to "Projects", projects_path, class: "nav-link #{current_page?(projects_path) ? 'fw-semibold text-dark' : 'text-muted'}" %>
+              </li>
+
+              <% if controller_name.in?(%w[project_files project_git project_members]) && defined?(@project) %>
+                <li class="nav-item">
+                  <%= link_to "Files", project_project_files_path(@project, path: ""), class: "nav-link #{controller_name == 'project_files' ? 'fw-semibold text-dark' : 'text-muted'}" %>
+                </li>
+                <li class="nav-item">
+                  <%= link_to "Git", project_git_path(@project), class: "nav-link #{controller_name == 'project_git' ? 'fw-semibold text-dark' : 'text-muted'}" %>
+                </li>
+                <% if current_user == @project.owner %>
+                  <li class="nav-item">
+                    <%= link_to "Members", project_project_members_path(@project), class: "nav-link #{controller_name == 'project_members' ? 'fw-semibold text-dark' : 'text-muted'}" %>
+                  </li>
+                <% end %>
+              <% end %>
+            <% end %>
+          </ul>
+
+          <!-- Right-side Auth Controls -->
+          <ul class="navbar-nav ms-auto align-items-center">
+            <% if current_user %>
+              <!-- User Dropdown -->
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle d-flex align-items-center text-muted" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="bi bi-person-circle me-1 text-muted"></i>
+                  <span class="fw-medium"><%= current_user.username || current_user.email %></span>
+                </a>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                  <li>
+                    <%= button_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item text-danger" %>
+                  </li>
+                </ul>
+              </li>
+            <% else %>
+              <li class="nav-item">
+                <%= link_to "Sign In", new_user_session_path, class: "btn btn-sm btn-outline-secondary" %>
               </li>
             <% end %>
-          <% end %>
-        <% end %>
-      </ul>
-
-      <!-- Right-side Auth Info -->
-      <ul class="navbar-nav ms-auto align-items-center gap-2">
-        <% if current_user %>
-          <li class="nav-item">
-            <span class="nav-link text-muted small">👤 <%= current_user.username || current_user.email %></span>
-          </li>
-          <li class="nav-item">
-            <%= button_to "Sign Out", destroy_user_session_path, method: :delete, class: "btn btn-sm btn-outline-danger" %>
-          </li>
-        <% else %>
-          <li class="nav-item">
-            <%= link_to "Sign In", new_user_session_path, class: "btn btn-sm btn-outline-secondary" %>
-          </li>
-        <% end %>
-      </ul>
-    </div>
-  </div>
-</nav>
+          </ul>
+        </div>
+      </div>
+    </nav>
     <!-- Flash Alerts -->
     <div class="container mt-3">
       <% flash.each do |type, message| %>
