@@ -7,4 +7,5 @@ class Project < ApplicationRecord
   validates :slug, presence: true, uniqueness: true
   has_many :branches, dependent: :destroy
   has_many :files, class_name: "ProjectFile", dependent: :destroy
+  has_many :conflict_queues, dependent: :destroy
 end

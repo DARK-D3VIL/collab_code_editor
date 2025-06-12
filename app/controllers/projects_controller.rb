@@ -126,6 +126,7 @@ class ProjectsController < ApplicationController
     end
 
     # Delete associated records manually (if no `dependent: :destroy`)
+    ConflictQueue.where(project_id: @project.id).destroy_all
     @project.project_memberships.destroy_all
     @project.branches.destroy_all
     @project.files.destroy_all
