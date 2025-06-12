@@ -15,10 +15,15 @@ class GithubController < ApplicationController
 
     @repos = JSON.parse(response.body)
   end
-
   def clone
     repo_name = params[:repo_name]
     clone_url = params[:clone_url]
+
+    # Check if the user already has a project with this repo name
+    if current_user.owned_projects.exists?(name: repo_name)
+      redirect_to github_repos_path, alert: "You’ve already cloned this repository."
+      return
+    end
 
     # Create new Project
     slug = SecureRandom.hex(3)

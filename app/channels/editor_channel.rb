@@ -13,10 +13,10 @@ class EditorChannel < ApplicationCable::Channel
 
     @stream_key = "editor_#{@project_id}_#{@branch}_#{@file_id}"
     @active_key = active_editors_key
-    
+
     stream_from @stream_key
     stream_for current_user # for private conflict notifications
-    
+
     # Add user to active editors when they subscribe
     add_to_active_editors(@user_id)
     Rails.logger.info "[EditorChannel] User #{@user_id} subscribed to #{@stream_key}"
@@ -43,8 +43,8 @@ class EditorChannel < ApplicationCable::Channel
 
     # Get all active users editing this file
     all_active_users = fetch_all_active_users
-    other_users = all_active_users - [incoming_user_id]
-    
+    other_users = all_active_users - [ incoming_user_id ]
+
     Rails.logger.info "[EditorChannel] All active users: #{all_active_users.inspect}"
     Rails.logger.info "[EditorChannel] Other users to check: #{other_users.inspect}"
 
@@ -79,7 +79,7 @@ class EditorChannel < ApplicationCable::Channel
 
     if conflict_lines.any?
       Rails.logger.info "[Conflict Detected] Creating conflict for user #{other_user_id} on lines #{conflict_lines}"
-      
+
       # Prepare conflict data for each conflicting line
       conflicting_line_data = {}
       conflict_lines.each do |line_num|
@@ -88,7 +88,7 @@ class EditorChannel < ApplicationCable::Channel
           "existing" => get_user_line_content(other_user_id, line_num) || ""
         }
       end
-      
+
       # Create conflict record
       conflict = ConflictQueue.create!(
         project_id: @project_id,
@@ -113,7 +113,7 @@ class EditorChannel < ApplicationCable::Channel
         lines_changed: conflict_lines,
         conflict_id: conflict.id
       })
-      
+
       Rails.logger.info "[Conflict Broadcast] Sent conflict notification to user #{other_user_id}"
     else
       Rails.logger.info "[No Conflict] No conflicting lines found between users #{incoming_user_id} and #{other_user_id}"
@@ -138,16 +138,16 @@ class EditorChannel < ApplicationCable::Channel
   def add_to_active_editors(user_id)
     @@mutex.synchronize do
       Rails.logger.info "[EditorChannel] Adding user #{user_id} with key: #{@active_key}"
-      
+
       @@active_editors[@active_key] ||= []
-      
+
       unless @@active_editors[@active_key].include?(user_id)
         @@active_editors[@active_key] << user_id
         Rails.logger.info "[EditorChannel] Added user #{user_id} to active editors: #{@@active_editors[@active_key].inspect}"
       else
         Rails.logger.info "[EditorChannel] User #{user_id} already in active editors: #{@@active_editors[@active_key].inspect}"
       end
-      
+
       # Verify the addition worked
       Rails.logger.info "[EditorChannel] Verification - active editors now: #{@@active_editors[@active_key].inspect}"
     end
@@ -156,36 +156,36 @@ class EditorChannel < ApplicationCable::Channel
   def remove_from_active_editors(user_id)
     @@mutex.synchronize do
       Rails.logger.info "[EditorChannel] Removing user #{user_id} with key: #{@active_key}"
-      
+
       if @@active_editors[@active_key]
         @@active_editors[@active_key].delete(user_id)
         Rails.logger.info "[EditorChannel] Removed user #{user_id} from active editors: #{@@active_editors[@active_key].inspect}"
-        
+
         # Clean up empty arrays
         @@active_editors.delete(@active_key) if @@active_editors[@active_key].empty?
       else
         Rails.logger.info "[EditorChannel] No active editors found for key: #{@active_key}"
       end
     end
-    
+
     # Clean up user's recent edits when they disconnect
     cleanup_user_edits(user_id)
   end
 
   def track_user_edits(user_id, line_numbers)
     return if line_numbers.empty?
-    
+
     @@mutex.synchronize do
       now = Time.current.to_f
       edit_key = recent_edit_key(user_id)
-      
+
       @@recent_edits[edit_key] ||= {}
-      
+
       line_numbers.each { |ln| @@recent_edits[edit_key][ln] = now }
-      
+
       Rails.logger.info "[EditorChannel] Tracked edits for user #{user_id} on lines: #{line_numbers.inspect}"
       Rails.logger.info "[EditorChannel] User #{user_id} recent edits now: #{@@recent_edits[edit_key].inspect}"
-      
+
       # Clean up old edits (older than 2 minutes)
       cutoff_time = now - 120 # 2 minutes ago
       @@recent_edits[edit_key].delete_if { |line, timestamp| timestamp < cutoff_time }
@@ -196,12 +196,12 @@ class EditorChannel < ApplicationCable::Channel
     @@mutex.synchronize do
       edit_key = recent_edit_key(user_id)
       recent_edits = @@recent_edits[edit_key] || {}
-      
+
       # Clean up old edits (older than 2 minutes)
       now = Time.current.to_f
       cutoff_time = now - 120 # 2 minutes ago
       recent_edits.delete_if { |line, timestamp| timestamp < cutoff_time }
-      
+
       recent_edits.dup # Return a copy
     end
   end
@@ -233,7 +233,7 @@ class EditorChannel < ApplicationCable::Channel
     @@mutex.synchronize do
       now = Time.current.to_f
       cutoff_time = now - 120 # 2 minutes ago
-      
+
       @@recent_edits.each do |key, edits|
         edits.delete_if { |line, timestamp| timestamp < cutoff_time }
         @@recent_edits.delete(key) if edits.empty?

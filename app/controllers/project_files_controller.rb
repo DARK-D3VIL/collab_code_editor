@@ -1,3 +1,5 @@
+include ProjectFilesHelper
+
 class ProjectFilesController < ApplicationController
   before_action :authenticate_user!
   before_action :set_project
@@ -38,6 +40,10 @@ class ProjectFilesController < ApplicationController
     @current_path = params[:path].to_s
     @file_name = params[:id]
 
+    unless editable_file?(@file_name)
+      redirect_to project_project_files_path(@project, path: @current_path), alert: "This file type is not supported for editing." and return
+    end
+
     repo_path = Rails.root.join("storage", "projects", "project_#{@project.id}")
     full_path = repo_path.join(@current_path, @file_name)
 
@@ -46,25 +52,16 @@ class ProjectFilesController < ApplicationController
     end
 
     unsaved_path = "#{full_path}.unsaved"
-  @file_content = if File.exist?(unsaved_path)
-                    File.read(unsaved_path)
-  else
-    File.read(full_path)
-  end
+    @file_content = if File.exist?(unsaved_path)
+                      File.read(unsaved_path)
+    else
+      File.read(full_path)
+    end
 
     @branch_name = current_branch_for_project.name
 
     ext = File.extname(@file_name).delete(".")
-    @language = {
-      "rb" => "ruby",
-      "js" => "javascript",
-      "html" => "html",
-      "css" => "css",
-      "json" => "json",
-      "py" => "python",
-      "java" => "java",
-      "md" => "markdown"
-    }[ext] || "plaintext"
+    @language = language_for_extension(ext)
   end
 
   def save
@@ -182,8 +179,9 @@ class ProjectFilesController < ApplicationController
   end
 
   def authorize_user!
-    unless @project.users.include?(current_user) || @project.owner == current_user
-      redirect_to project_projects_path, alert: "You are not authorized to access this project."
+    membership = @project.project_memberships.find_by(user_id: current_user.id)
+    unless @project.owner == current_user || (membership&.active?)
+      redirect_to projects_path, alert: "You are not authorized to access this project."
     end
   end
 

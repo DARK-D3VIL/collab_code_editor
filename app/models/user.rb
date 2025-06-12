@@ -51,4 +51,13 @@ class User < ApplicationRecord
   def current_branch_for(project)
     membership_for(project)&.current_branch
   end
+  def accessible_projects
+    Project
+      .left_outer_joins(:project_memberships)
+      .where(
+        "projects.owner_id = :id OR (project_memberships.user_id = :id AND project_memberships.active = :active)",
+        id: id,
+        active: true
+      ).distinct
+  end
 end

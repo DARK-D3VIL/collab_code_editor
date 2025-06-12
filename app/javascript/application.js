@@ -2,5 +2,6 @@
 // import { createConsumer } from "@rails/actioncable"
 // window.ActionCable = { createConsumer }
 import "./channels"
+import 'bootstrap'
 import Rails from "@rails/ujs"
 Rails.start()

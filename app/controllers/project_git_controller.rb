@@ -148,8 +148,9 @@ class ProjectGitController < ApplicationController
   end
 
   def authorize_user!
-    unless @project.users.include?(current_user) || @project.owner == current_user
-      redirect_to projects_path, alert: "Unauthorized"
+    membership = @project.project_memberships.find_by(user_id: current_user.id)
+    unless @project.owner == current_user || (membership&.active?)
+      redirect_to projects_path, alert: "You are not authorized to access this project."
     end
   end
 

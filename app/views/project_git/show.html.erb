@@ -1,27 +1,106 @@
 <% content_for :title, "Git Commit Graph" %>
 
-<div class="d-flex" style="min-height: 100vh;">
-  <%= render "partials/sidebar", active: :history %>
+<div class="container-fluid p-0">
+  <div class="row g-0">
 
-  <div class="flex-grow-1 p-4 bg-light">
-    <h4 class="mb-4">Git Commit Graph</h4>
+    <!-- Sidebar -->
+    <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse border-end">
+      <div class="position-sticky p-4">
+        <h5 class="fw-bold text-primary mb-4">Git Panel</h5>
+        <ul class="nav flex-column">
+          <li class="nav-item mb-2">
+            <%= link_to project_git_path(@project), class: sidebar_link_class('show') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-clock-history me-2"></i> History
+            <% end %>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_git_branches_path(@project), class: sidebar_link_class('branches') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-git me-2"></i> Branches
+            <% end %>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: sidebar_link_class('commits') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-list-ol me-2"></i> Commits
+            <% end %>
+          </li>
+        </ul>
+      </div>
+    </nav>
 
-    <div class="border rounded p-3 bg-white shadow-sm">
-      <div id="gitGraph" style="height: 600px; overflow: auto; white-space: nowrap;"></div>
-    </div>
+    <!-- Main Content -->
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-5 py-4 bg-light min-vh-100">
+      <!-- Mobile Toggle Button -->
+      <div class="d-md-none mb-3">
+        <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
+          <i class="bi bi-list"></i> Toggle Menu
+        </button>
+      </div>
+
+      <h2 class="mb-4">Git Commit Graph</h2>
+
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div id="gitGraph" class="git-graph-container"></div>
+        </div>
+      </div>
+    </main>
   </div>
 </div>
 
+<!-- CSS -->
 <style>
-  #gitGraph svg {
-    max-width: 100%;
+  .sidebar {
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #ffffff;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar .nav-link {
+    color: #333;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+  }
+
+  .sidebar .nav-link:hover {
+    background-color: #f1f3f5;
+    border-left-color: #0d6efd;
+  }
+
+  .sidebar .nav-link.active {
+    color: #0d6efd;
+    background-color: #e9f3ff;
+    border-left: 4px solid #0d6efd;
   }
 </style>
 
+<!-- GitGraphJS Script -->
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const graphContainer = document.getElementById("gitGraph");
-    const gitgraph = GitgraphJS.createGitgraph(graphContainer);
+    const gitgraph = GitgraphJS.createGitgraph(graphContainer, {
+      template: GitgraphJS.templateExtend(GitgraphJS.TemplateName.metro, {
+        colors: ["#0d6efd", "#20c997", "#fd7e14"],
+        branch: {
+          lineWidth: 4,
+          spacingX: 50,
+        },
+        commit: {
+          spacingY: 40,
+          dot: {
+            size: 6,
+          },
+          message: {
+            displayAuthor: true,
+            displayHash: true,
+            font: "normal 12pt sans-serif",
+          },
+        },
+      }),
+    });
 
     const branches = {};
     const commits = <%= raw @graph_commits.to_json %>;
@@ -45,11 +124,6 @@
         subject: commit.message,
         author: commit.author,
         hash: commit.sha.slice(0, 7),
-        style: {
-          dot: {
-            color: "#007bff"
-          }
-        }
       });
     });
   });

@@ -34,6 +34,12 @@ Rails.application.routes.draw do
     collection do
       post "join"
     end
+    resources :project_members, only: [:index] do
+      member do
+        patch :deactivate
+        patch :activate
+      end
+    end
 
     resources :project_files, path: "files", param: :id, constraints: { id: /[^\/]+/ }  do
       collection do

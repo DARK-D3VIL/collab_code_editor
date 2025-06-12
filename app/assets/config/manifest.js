@@ -6,3 +6,5 @@
 //= link channels/index.js
 //= link @rails--actioncable.js
 //= link @rails--ujs.js
+//= link bootstrap.js
+//= link @popperjs--core.js

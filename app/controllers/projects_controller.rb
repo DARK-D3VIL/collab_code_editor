@@ -2,7 +2,7 @@ class ProjectsController < ApplicationController
   before_action :authenticate_user!
 
   def index
-    @projects = current_user.projects
+    @projects = current_user.accessible_projects
   end
 
   def new
@@ -77,34 +77,44 @@ class ProjectsController < ApplicationController
   end
 
   def show
-    @project = Project.find(params[:id])
-    unless @project.users.include?(current_user) || @project.owner == current_user
+    @project = Project.includes(project_memberships: :user).find(params[:id])
+
+    # Allow access if current_user is the owner or an active member
+    is_owner = @project.owner == current_user
+    is_active_member = @project.project_memberships.exists?(user_id: current_user.id, active: true)
+
+    unless is_owner || is_active_member
       redirect_to projects_path, alert: "You are not authorized to access this project."
+      return
     end
+
+    @active_members = @project.project_memberships
+                              .includes(:user)
+                              .where(active: true)
+                              .map(&:user)
   end
 
   def join
     @project = Project.find_by(slug: params[:project_code])
-
     if @project.nil?
       redirect_to projects_path, alert: "Project not found with that code."
       return
     end
 
-    if @project.users.include?(current_user)
-      redirect_to project_path(), notice: "You are already a member of this project."
-      return
+    membership = @project.project_memberships.find_by(user: current_user)
+    if membership&.active?
+      redirect_to project_path(@project), notice: "You are already a member of this project."
+    elsif membership
+      redirect_to projects_path, alert: "You have been removed from this project."
+    else
+      main_branch = @project.branches.find_by(name: "main")
+      ProjectMembership.create!(
+        user: current_user,
+        project: @project,
+        current_branch: main_branch
+      )
+      redirect_to project_project_files_path(@project), notice: "Successfully joined the project."
     end
-
-    main_branch = @project.branches.find_by(name: "main")
-
-    ProjectMembership.create!(
-      user: current_user,
-      project: @project,
-      current_branch: main_branch
-    )
-
-    redirect_to project_project_files_path(@project), notice: "Successfully joined the project."
   end
 
   def destroy

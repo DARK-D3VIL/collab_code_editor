@@ -1,57 +1,122 @@
 <% content_for :title, "Branches" %>
 
-<div class="d-flex" style="min-height: 100vh;">
-  <!-- Sidebar -->
-  <%= render "partials/sidebar", active: :branches %>
+<div class="container-fluid p-0">
+  <div class="row g-0">
 
-  <!-- Main Content -->
-  <div class="flex-grow-1 p-4 bg-light">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="mb-0">Branches</h2>
-    </div>
-
-    <!-- Branch creation form -->
-    <div class="mb-4">
-      <%= form_with url: project_git_branches_path(@project), method: :post, local: true do |f| %>
-        <div class="input-group">
-          <%= f.text_field :name, class: "form-control", placeholder: "Enter new branch name..." %>
-          <button class="btn btn-primary" type="submit">Create</button>
-        </div>
-      <% end %>
-    </div>
-
-    <!-- Branch list table -->
-    <div class="card shadow-sm">
-      <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-          <thead class="table-light">
-            <tr>
-              <th>Name</th>
-              <th>Created</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @branches.each do |branch| %>
-              <tr>
-                <td><%= branch.name %></td>
-                <td><%= branch.created_at.strftime("%Y-%m-%d") %></td>
-                <td class="d-flex gap-2">
-                  <% unless branch.name == @current_branch %>
-                    <%= button_to "Switch", project_git_switch_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-success" %>
-                  <% end %>
-
-                  <% unless branch.name == "main" %>
-                    <%= button_to "Merge to Main", project_git_merge_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-warning" %>
-                  <% end %>
-
-                  <%= link_to "View Commits", project_git_branch_commits_path(@project, branch), class: "btn btn-sm btn-outline-info" %>
-                </td>
-              </tr>
+    <!-- Sidebar -->
+    <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse border-end">
+      <div class="position-sticky p-4">
+        <h5 class="fw-bold text-primary mb-4">Git Panel</h5>
+        <ul class="nav flex-column">
+          <li class="nav-item mb-2">
+            <%= link_to project_git_path(@project), class: sidebar_link_class('show') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-clock-history me-2"></i> History
             <% end %>
-          </tbody>
-        </table>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_git_branches_path(@project), class: sidebar_link_class('branches') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-git me-2"></i> Branches
+            <% end %>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: sidebar_link_class('commits') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-list-ol me-2"></i> Commits
+            <% end %>
+          </li>
+        </ul>
       </div>
-    </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-5 py-4 bg-light min-vh-100">
+      <!-- Toggle Button for Mobile -->
+      <div class="d-md-none mb-3">
+        <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
+          <i class="bi bi-list"></i> Toggle Menu
+        </button>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="fw-semibold">Branches</h2>
+      </div>
+
+      <!-- Branch creation -->
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <%= form_with url: project_git_branches_path(@project), method: :post, local: true do |f| %>
+            <div class="input-group">
+              <%= f.text_field :name, class: "form-control", placeholder: "Enter new branch name..." %>
+              <button class="btn btn-primary" type="submit">Create</button>
+            </div>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Branch List -->
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Branch Name</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @branches.each do |branch| %>
+                <tr>
+                  <td><strong><%= branch.name %></strong></td>
+                  <td><%= branch.created_at.strftime("%Y-%m-%d") %></td>
+                  <td class="d-flex flex-wrap gap-2">
+                    <% unless branch.name == @current_branch %>
+                      <%= button_to "Switch", project_git_switch_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-success" %>
+                    <% end %>
+                    <% unless branch.name == "main" %>
+                      <%= button_to "Merge to Main", project_git_merge_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-warning" %>
+                    <% end %>
+                    <%= link_to "View Commits", project_git_branch_commits_path(@project, branch), class: "btn btn-sm btn-outline-info" %>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
   </div>
 </div>
+
+<!-- Styles -->
+<style>
+  .sidebar {
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #ffffff;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar .nav-link {
+    color: #333;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+  }
+
+  .sidebar .nav-link:hover {
+    background-color: #f1f3f5;
+    border-left-color: #0d6efd;
+  }
+
+  .sidebar .nav-link.active {
+    color: #0d6efd;
+    background-color: #e9f3ff;
+    border-left: 4px solid #0d6efd;
+  }
+
+  .table td, .table th {
+    vertical-align: middle;
+  }
+</style>

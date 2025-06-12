@@ -1,0 +1,72 @@
+<div class="container py-5">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold mb-1 text-dark">Manage Project Members</h2>
+      <p class="text-muted mb-0">Project: <strong><%= @project.name %></strong></p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Active Members -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-bottom-0 pb-0">
+          <h5 class="fw-semibold text-success mb-0">
+            <i class="bi bi-person-check-fill me-1 text-success"></i> Active Members
+          </h5>
+        </div>
+        <div class="card-body pt-3">
+          <% if @active_memberships.any? %>
+            <ul class="list-group list-group-flush">
+              <% @active_memberships.each do |membership| %>
+                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-person-circle fs-5 text-primary"></i>
+                    <span class="fw-medium text-dark"><%= membership.user.username || membership.user.email %></span>
+                  </div>
+                  <%= button_to "Remove", deactivate_project_project_member_path(@project, membership.user),
+                                method: :patch,
+                                data: { confirm: "Are you sure you want to remove this member?" },
+                                class: "btn btn-sm btn-outline-danger" %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-muted">No active members in this project.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+
+    <!-- Blocked Members -->
+    <div class="col-md-6">
+      <div class="card border-0 shadow-sm h-100">
+        <div class="card-header bg-white border-bottom-0 pb-0">
+          <h5 class="fw-semibold text-danger mb-0">
+            <i class="bi bi-person-dash-fill me-1 text-danger"></i> Blocked Members
+          </h5>
+        </div>
+        <div class="card-body pt-3">
+          <% if @inactive_memberships.any? %>
+            <ul class="list-group list-group-flush">
+              <% @inactive_memberships.each do |membership| %>
+                <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                  <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-person-x-fill fs-5 text-secondary"></i>
+                    <span class="fw-medium text-dark"><%= membership.user.username || membership.user.email %></span>
+                  </div>
+                  <%= button_to "Re-add", activate_project_project_member_path(@project, membership.user),
+                                method: :patch,
+                                class: "btn btn-sm btn-outline-success" %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <p class="text-muted">No blocked members in this project.</p>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

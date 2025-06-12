@@ -1,50 +1,114 @@
 <% content_for :title, "Commits for #{@branch.name}" %>
 
-<div class="d-flex" style="min-height: 100vh;">
-  <!-- Sidebar -->
-  <%= render "partials/sidebar", active: :commits %>
+<div class="container-fluid p-0">
+  <div class="row g-0">
 
-  <!-- Main Content -->
-  <div class="flex-grow-1 p-4 bg-light">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h2 class="mb-0">Commits for Branch: <%= @branch.name %></h2>
-    </div>
-
-    <!-- Commit list table -->
-    <div class="card shadow-sm">
-      <div class="card-body p-0">
-        <table class="table table-hover table-bordered mb-0 align-middle">
-          <thead class="table-light">
-            <tr>
-              <th scope="col">SHA</th>
-              <th scope="col">Message</th>
-              <th scope="col">Author</th>
-              <th scope="col">Date</th>
-              <th scope="col" class="text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% @commits.each do |commit| %>
-              <tr>
-                <td><code><%= commit[:sha][0..6] %></code></td>
-                <td><%= truncate(commit[:message], length: 60) %></td>
-                <td><%= commit[:author] %></td>
-                <td><%= commit[:time].strftime("%d %b %Y %H:%M") %></td>
-                <td class="text-center">
-                  <div class="d-flex justify-content-center gap-2">
-                    <%= link_to "View Diff", project_git_branch_commit_path(@project, @branch.name, sha: commit[:sha]), class: "btn btn-sm btn-outline-primary" %>
-                    <%= button_to "Rollback", project_git_branch_rollback_path(@project, @branch.name), method: :post,
-                        params: { sha: commit[:sha] },
-                        form: { data: { turbo_confirm: "Are you sure you want to rollback to this commit?" } },
-                        class: "btn btn-sm btn-outline-danger" %>
-
-                  </div>
-                </td>
-              </tr>
+    <!-- Sidebar -->
+    <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse border-end">
+      <div class="position-sticky p-4">
+        <h5 class="fw-bold text-primary mb-4">Git Panel</h5>
+        <ul class="nav flex-column">
+          <li class="nav-item mb-2">
+            <%= link_to project_git_path(@project), class: sidebar_link_class('show') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-clock-history me-2"></i> History
             <% end %>
-          </tbody>
-        </table>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_git_branches_path(@project), class: sidebar_link_class('branches') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-git me-2"></i> Branches
+            <% end %>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: sidebar_link_class('commits') + ' nav-link d-flex align-items-center' do %>
+              <i class="bi bi-list-ol me-2"></i> Commits
+            <% end %>
+          </li>
+        </ul>
       </div>
-    </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-5 py-4 bg-light min-vh-100">
+      <!-- Mobile Toggle Button -->
+      <div class="d-md-none mb-3">
+        <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
+          <i class="bi bi-list"></i> Toggle Menu
+        </button>
+      </div>
+
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">Commits for Branch: <%= @branch.name %></h2>
+      </div>
+
+      <!-- Commit Table -->
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <table class="table table-hover table-bordered mb-0 align-middle">
+            <thead class="table-light">
+              <tr>
+                <th scope="col">SHA</th>
+                <th scope="col">Message</th>
+                <th scope="col">Author</th>
+                <th scope="col">Date</th>
+                <th scope="col" class="text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @commits.each do |commit| %>
+                <tr>
+                  <td><code><%= commit[:sha][0..6] %></code></td>
+                  <td><%= truncate(commit[:message], length: 60) %></td>
+                  <td><%= commit[:author] %></td>
+                  <td><%= commit[:time].strftime("%d %b %Y %H:%M") %></td>
+                  <td class="text-center">
+                    <div class="d-flex justify-content-center gap-2">
+                      <%= link_to project_git_branch_commit_path(@project, @branch.name, sha: commit[:sha]), class: "btn btn-sm btn-outline-primary" do %>
+                        <i class="bi bi-eye me-1"></i> View Diff
+                      <% end %>
+                      <%= button_to project_git_branch_rollback_path(@project, @branch.name), method: :post,
+                            params: { sha: commit[:sha] },
+                            form: { data: { turbo_confirm: "Are you sure you want to rollback to this commit?" } },
+                            class: "btn btn-sm btn-outline-danger" do %>
+                        <i class="bi bi-arrow-counterclockwise me-1"></i> Rollback
+                      <% end %>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
   </div>
 </div>
+
+<!-- Styles -->
+<style>
+  .sidebar {
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #ffffff;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar .nav-link {
+    color: #333;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+  }
+
+  .sidebar .nav-link:hover {
+    background-color: #f1f3f5;
+    border-left-color: #0d6efd;
+  }
+
+  .sidebar .nav-link.active {
+    color: #0d6efd;
+    background-color: #e9f3ff;
+    border-left: 4px solid #0d6efd;
+  }
+</style>
