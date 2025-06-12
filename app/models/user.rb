@@ -31,8 +31,6 @@ class User < ApplicationRecord
   validates :username, presence: true
 
   has_many :project_memberships
-  # has_many :document_changes, dependent: :destroy
-  # has_many :editing_sessions, through: :document_changes
   has_many :projects, through: :project_memberships
   has_many :owned_projects, class_name: "Project", foreign_key: "owner_id"
 

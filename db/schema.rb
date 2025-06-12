@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_06_11_160736) do
+ActiveRecord::Schema[7.2].define(version: 2025_06_12_061110) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -56,43 +56,6 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_11_160736) do
     t.index ["project_id"], name: "index_conflict_queues_on_project_id"
     t.index ["user_id", "resolved"], name: "index_conflict_queues_on_user_id_and_resolved"
     t.index ["user_id"], name: "index_conflict_queues_on_user_id"
-  end
-
-  create_table "document_changes", force: :cascade do |t|
-    t.bigint "project_id", null: false
-    t.bigint "user_id", null: false
-    t.string "file_path", null: false
-    t.string "branch_name", null: false
-    t.integer "start_line"
-    t.integer "end_line"
-    t.integer "start_column"
-    t.integer "end_column"
-    t.text "content"
-    t.string "operation_type", null: false
-    t.integer "revision"
-    t.json "operation_data"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["created_at"], name: "index_document_changes_on_created_at"
-    t.index ["project_id", "file_path", "branch_name"], name: "idx_doc_changes_project_file_branch"
-    t.index ["project_id"], name: "index_document_changes_on_project_id"
-    t.index ["revision"], name: "index_document_changes_on_revision"
-    t.index ["user_id"], name: "index_document_changes_on_user_id"
-  end
-
-  create_table "editing_sessions", force: :cascade do |t|
-    t.bigint "project_id", null: false
-    t.string "file_path", null: false
-    t.string "branch_name", null: false
-    t.text "content"
-    t.integer "revision", default: 0
-    t.json "active_users", default: {}
-    t.json "pending_conflicts", default: {}
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["project_id", "file_path", "branch_name"], name: "index_editing_sessions_on_project_file_branch", unique: true
-    t.index ["project_id"], name: "index_editing_sessions_on_project_id"
-    t.index ["updated_at"], name: "index_editing_sessions_on_updated_at"
   end
 
   create_table "project_files", force: :cascade do |t|
@@ -145,9 +108,6 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_11_160736) do
   add_foreign_key "commits", "users"
   add_foreign_key "conflict_queues", "projects"
   add_foreign_key "conflict_queues", "users"
-  add_foreign_key "document_changes", "projects"
-  add_foreign_key "document_changes", "users"
-  add_foreign_key "editing_sessions", "projects"
   add_foreign_key "project_files", "projects"
   add_foreign_key "project_memberships", "projects"
   add_foreign_key "project_memberships", "users"
