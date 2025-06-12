@@ -1,15 +1,29 @@
 import consumer from "./consumer"
 
-consumer.subscriptions.create("EditorChannel", {
-  connected() {
-    // Called when the subscription is ready for use on the server
-  },
+let editorChannel;
 
-  disconnected() {
-    // Called when the subscription has been terminated by the server
-  },
-
-  received(data) {
-    // Called when there's incoming data on the websocket for this channel
+export function subscribeToEditor(projectId, fileId, branch, onReceive) {
+  if (editorChannel) {
+    editorChannel.unsubscribe();
   }
-});
+
+  editorChannel = consumer.subscriptions.create(
+    {
+      channel: "EditorChannel",
+      project_id: projectId,
+      file_id: fileId,
+      branch: branch,
+    },
+    {
+      received(data) {
+        onReceive(data); // sync data to Monaco or show conflicts
+      },
+    }
+  );
+}
+
+export function sendEditorUpdate(data) {
+  if (editorChannel) {
+    editorChannel.send(data);
+  }
+}

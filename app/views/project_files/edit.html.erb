@@ -1,22 +1,30 @@
-<!-- app/views/project_files/edit.html.erb -->
 <div class="editor-container" style="height: 100vh; display: flex; flex-direction: column; background-color: #f8f9fa;">
-  <!-- Header Bar -->
+  <!-- Header -->
   <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-white shadow-sm border-bottom sticky-top" style="z-index: 100;">
     <h5 class="mb-0">
       📝 Editing: <strong><%= @file_name %></strong>
       <span class="text-muted">(<%= @language.capitalize %>)</span>
       <span class="badge bg-secondary">Branch: <%= @branch_name %></span>
     </h5>
-
     <div class="d-flex gap-2">
-      <button id="saveBtn" class="btn btn-outline-success" title="Save without commit">💾 Save</button>
-      <button id="commitBtn" class="btn btn-outline-primary" title="Save and commit changes">✅ Commit</button>
-      <button id="exitBtn" class="btn btn-outline-danger" title="Exit without saving">🚪 Exit</button>
+      <button id="saveBtn" class="btn btn-outline-success">💾 Save</button>
+      <button id="commitBtn" class="btn btn-outline-primary">✅ Commit</button>
+      <button id="exitBtn" class="btn btn-outline-danger">🚪 Exit</button>
     </div>
   </div>
 
-  <!-- Monaco Editor -->
-  <div id="editor" style="flex-grow: 1; border-top: 1px solid #ddd;"></div>
+  <!-- Editor and Conflict Panel -->
+  <div class="d-flex flex-grow-1">
+    <div id="editor" class="flex-grow-1" style="height: 100%; border-right: 1px solid #ccc;"></div>
+
+    <!-- Conflict Panel -->
+    <div id="editor_conflicts" class="bg-light p-3" style="width: 30%; overflow-y: auto;">
+      <h5>Conflicts</h5>
+      <%= turbo_frame_tag "editor_conflicts" do %>
+        <%= render partial: "conflicts/conflict", collection: @conflicts, as: :conflict %>
+      <% end %>
+    </div>
+  </div>
 </div>
 
 <%= javascript_importmap_tags %>
@@ -51,7 +59,7 @@
       fontSize: 14,
       minimap: { enabled: false },
       wordWrap: "on",
-      padding: { top: 10, bottom: 10 },
+      padding: { top: 10, bottom: 10 }
     });
 
     const consumer = createConsumer();
@@ -65,44 +73,118 @@
       },
       {
         received(data) {
-          if (data.content !== lastContent) {
+          if (data.conflict) {
+            // Conflict notification for current user
+            fetch(`/conflicts/panel?file_id=${fileName}&branch=${branchName}&project_id=${projectId}`)
+              .then(resp => resp.text())
+              .then(html => {
+                const turboFrame = document.getElementById("editor_conflicts");
+                if (turboFrame) turboFrame.innerHTML = html;
+              });
+            return;
+          }
+
+          if (data.content !== editor.getValue() && !isApplyingRemoteUpdate) {
             isApplyingRemoteUpdate = true;
-            lastContent = data.content;
 
-            const position = editor.getPosition();
+            const currentPosition = editor.getPosition();
             editor.setValue(data.content);
-            editor.setPosition(position);
+            editor.setPosition(currentPosition);
 
-            setTimeout(() => {
-              isApplyingRemoteUpdate = false;
-            }, 100);
+            lastContent = data.content;
+            setTimeout(() => (isApplyingRemoteUpdate = false), 100);
           }
         }
       }
     );
 
+    // Track changes and broadcast
     let debounceTimer;
     editor.onDidChangeModelContent(() => {
       if (isApplyingRemoteUpdate) return;
 
-      const content = editor.getValue();
-      lastContent = content;
+      const newContent = editor.getValue();
+      const baseLines = lastContent.split("\n");
+      const newLines = newContent.split("\n");
+
+      const changed_lines = {};
+      newLines.forEach((line, idx) => {
+        if (baseLines[idx] !== line) changed_lines[idx + 1] = line;
+      });
+
+      lastContent = newContent;
 
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        channel.send({ content: content });
+        channel.send({
+          content: newContent,
+          base_content: baseLines.join("\n"),
+          changed_lines: changed_lines
+        });
       }, 300);
     });
 
-    document.getElementById("saveBtn").addEventListener("click", () => {
-      saveContent(() => {
-        window.location.href = redirectUrl;
+    function saveContent(callback) {
+      const content = editor.getValue();
+      const path = new URLSearchParams(window.location.search).get("path");
+      const fileName = window.location.pathname.split("/").slice(-2)[0];
+      const projectId = window.location.pathname.split("/")[2];
+
+      fetch(`/projects/${projectId}/files/${fileName}/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+          content: content,
+          path: path // send path in JSON body instead of URL
+        })
+      })
+      .then(resp => resp.json())
+      .then(data => {
+        if (data.status === "success") {
+          callback();
+        } else {
+          alert("❌ Save failed: " + data.message);
+        }
       });
+    }
+
+
+    // Save + Commit + Exit
+    document.getElementById("saveBtn").addEventListener("click", () => {
+      const content = editor.getValue();
+      const path = new URLSearchParams(window.location.search).get("path");
+      const fileName = "<%= @file_name %>";
+      const projectId = "<%= @project.id %>";
+
+      fetch(`/projects/${projectId}/files/${fileName}/save`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+          content: content,
+          path: path
+        })
+      }).then(response => response.json())
+        .then(data => {
+          if (data.status === "success") {
+            alert("✅ File saved successfully!");
+            window.location.href = redirectUrl;
+          } else {
+            alert("❌ Error: " + data.message);
+          }
+        });
     });
 
     document.getElementById("commitBtn").addEventListener("click", () => {
       const message = prompt("Enter commit message:");
       if (!message) return;
+
+      const path = new URLSearchParams(window.location.search).get("path");
 
       saveContent(() => {
         fetch(commitUrl, {
@@ -111,43 +193,24 @@
             "Content-Type": "application/json",
             "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
           },
-          body: JSON.stringify({ message: message })
+          body: JSON.stringify({ message, path })  // Send path in the request
         })
-          .then(response => response.json())
-          .then(data => {
-            if (data.status === "success") {
-              alert("✅ Committed successfully.");
-              window.location.href = redirectUrl;
-            } else {
-              alert("❌ Commit failed: " + data.message);
-            }
-          });
+        .then(resp => resp.json())
+        .then(data => {
+          if (data.status === "success") {
+            alert("✅ Commit successful.");
+            window.location.href = redirectUrl;
+          } else {
+            alert("❌ Commit failed: " + data.message);
+          }
+        });
       });
     });
 
     document.getElementById("exitBtn").addEventListener("click", () => {
-      if (confirm("Are you sure you want to exit without saving?")) {
+      if (confirm("Exit without saving?")) {
         window.location.href = redirectUrl;
       }
     });
-
-    function saveContent(callback) {
-      fetch(saveUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
-        },
-        body: JSON.stringify({ content: editor.getValue(), path: currentPath })
-      })
-        .then(response => response.json())
-        .then(data => {
-          if (data.status === "success") {
-            callback();
-          } else {
-            alert("❌ Save failed: " + data.message);
-          }
-        });
-    }
   });
 </script>

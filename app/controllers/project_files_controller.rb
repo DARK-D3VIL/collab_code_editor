@@ -33,6 +33,7 @@ class ProjectFilesController < ApplicationController
   end
 
   def edit
+    cookies.encrypted[:user_id] = current_user.id
     @project = current_user.projects.find(params[:project_id])
     @current_path = params[:path].to_s
     @file_name = params[:id]
@@ -66,52 +67,30 @@ class ProjectFilesController < ApplicationController
     }[ext] || "plaintext"
   end
 
-  # def change_annotations
-  #   @project = current_user.projects.find(params[:project_id])
-  #   file_path = File.join(params[:path] || "", params[:id])
-
-  #   changes = DocumentChange.for_file(@project.id, file_path, current_branch_for_project.name)
-  #                         .includes(:user)
-  #                         .recent
-  #                         .limit(50)
-
-  #   annotations = changes.map do |change|
-  #     {
-  #       id: change.id,
-  #       user_name: change.author_name,
-  #       user_color: change.author_color,
-  #       start_line: change.start_line,
-  #       end_line: change.end_line,
-  #       operation_type: change.operation_type,
-  #       content: change.content,
-  #       timestamp: change.created_at.to_i,
-  #       relative_time: time_ago_in_words(change.created_at)
-  #     }
-  #   end
-  #   render json: { annotations: annotations }
-  # end
-
   def save
     @project = current_user.projects.find(params[:project_id])
-    file_name = params[:id]
-    @path = params[:path].to_s
 
+    # Safely build relative path
+    relative_path = params[:path].present? ? File.join(params[:path], params[:id]) : params[:id]
     repo_path = Rails.root.join("storage", "projects", "project_#{@project.id}")
-    file_path = repo_path.join(@path, file_name)
+    file_path = repo_path.join(relative_path)
+    # For redirecting UI
+    @path = params[:path].to_s
 
     if File.exist?(file_path)
       decoded_content = CGI.unescapeHTML(params[:content])
       File.write(file_path, decoded_content)
       File.write("#{file_path}.unsaved", decoded_content)
-      respond_to do |format|
-        format.json { render json: { status: "success" } }
-        format.html { redirect_to project_project_files_path(@project, path: @path), notice: "File saved." }
-      end
+
+      ClearConflictQueueJob.perform_later(
+        project_id: @project.id,
+        user_id: current_user.id,
+        branch: current_branch_for_project.name,
+        path: @path
+      )
+      render json: { status: "success" } and return
     else
-      respond_to do |format|
-        format.json { render json: { status: "error", message: "File not found." }, status: :not_found }
-        format.html { redirect_to project_project_files_path(@project, path: @path), alert: "File not found." }
-      end
+      render json: { status: "error", message: "File not found." }, status: :not_found and return
     end
   end
 
@@ -134,11 +113,18 @@ class ProjectFilesController < ApplicationController
       redirect_to project_project_files_path(@project, path: @current_path), alert: result.error
     end
   end
+
   def commit
     @path = params[:path]
     commit_message = params[:message]
 
     commit_sha = commit_changes(path: @path, message: commit_message)
+    ClearConflictQueueJob.perform_later(
+        project_id: @project.id,
+        user_id: current_user.id,
+        branch: current_branch_for_project.name,
+        path: @path
+      )
     render json: { status: "success", sha: commit_sha }
 
   rescue => e

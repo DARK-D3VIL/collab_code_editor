@@ -17,6 +17,17 @@ Rails.application.routes.draw do
   # root "posts#index"
   root to: "projects#index"
 
+  resources :conflicts, only: [] do
+    member do
+      post :resolve
+      post :ignore
+    end
+
+    collection do
+      get :panel
+    end
+  end
+
   get "/github_repos", to: "github#repos"
   post "/github_clone", to: "github#clone", as: :github_clone
   resources :projects do

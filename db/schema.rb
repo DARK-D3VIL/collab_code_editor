@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_06_11_112622) do
+ActiveRecord::Schema[7.2].define(version: 2025_06_11_160736) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -37,6 +37,25 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_11_112622) do
     t.index ["project_id"], name: "index_commits_on_project_id"
     t.index ["sha"], name: "index_commits_on_sha", unique: true
     t.index ["user_id"], name: "index_commits_on_user_id"
+  end
+
+  create_table "conflict_queues", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.bigint "user_id", null: false
+    t.string "file_path", null: false
+    t.string "branch", null: false
+    t.text "content"
+    t.text "base_content"
+    t.text "incoming_content"
+    t.json "lines_changed"
+    t.json "changed_lines"
+    t.boolean "resolved", default: false
+    t.datetime "created_at", precision: nil
+    t.datetime "updated_at", precision: nil
+    t.index ["project_id", "file_path", "branch"], name: "index_conflict_queues_on_project_id_and_file_path_and_branch"
+    t.index ["project_id"], name: "index_conflict_queues_on_project_id"
+    t.index ["user_id", "resolved"], name: "index_conflict_queues_on_user_id_and_resolved"
+    t.index ["user_id"], name: "index_conflict_queues_on_user_id"
   end
 
   create_table "document_changes", force: :cascade do |t|
@@ -124,6 +143,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_11_112622) do
   add_foreign_key "commits", "branches"
   add_foreign_key "commits", "projects"
   add_foreign_key "commits", "users"
+  add_foreign_key "conflict_queues", "projects"
+  add_foreign_key "conflict_queues", "users"
   add_foreign_key "document_changes", "projects"
   add_foreign_key "document_changes", "users"
   add_foreign_key "editing_sessions", "projects"

@@ -37,7 +37,9 @@
                 <td><%= branch.name %></td>
                 <td><%= branch.created_at.strftime("%Y-%m-%d") %></td>
                 <td class="d-flex gap-2">
-                  <%= button_to "Switch", project_git_switch_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-success" %>
+                  <% unless branch.name == @current_branch %>
+                    <%= button_to "Switch", project_git_switch_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-success" %>
+                  <% end %>
 
                   <% unless branch.name == "main" %>
                     <%= button_to "Merge to Main", project_git_merge_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-warning" %>

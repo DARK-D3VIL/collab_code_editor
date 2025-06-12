@@ -13,6 +13,7 @@ class ProjectGitController < ApplicationController
 
   def branches
     @branches = @project.branches.includes(:commits).order(:created_at)
+    @current_branch = current_branch_for_project.name
   end
 
   def create_branch
@@ -136,6 +137,14 @@ class ProjectGitController < ApplicationController
 
   def current_membership
     current_user.project_memberships.find_by(project_id: @project.id)
+  end
+
+  def current_branch_for_project
+    current_user.current_branch_for(@project) || default_branch_for(@project)
+  end
+
+  def default_branch_for(project)
+    project.branches.find_by(name: "main") || project.branches.first
   end
 
   def authorize_user!

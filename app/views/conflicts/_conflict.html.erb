@@ -1,0 +1,164 @@
+<!-- app/views/conflicts/_conflict.html.erb -->
+
+<div id="conflict_<%= conflict.id %>" class="card mb-3 border-warning">
+  <div class="card-header bg-warning text-dark">
+    <h6 class="mb-0">
+      ⚠️ Conflict Detected
+      <small class="text-muted">(<%= time_ago_in_words(conflict.created_at) %> ago)</small>
+    </h6>
+  </div>
+  
+  <div class="card-body">
+    <% if conflict.lines_changed.present? %>
+      <p class="text-muted mb-2">
+        <strong>Lines affected:</strong> <%= conflict.lines_changed.join(', ') %>
+      </p>
+    <% end %>
+    
+    <div class="row">
+      <div class="col-6">
+        <h6 class="text-muted">Your Current Version</h6>
+        <pre class="bg-light p-2 border rounded small"><code><%= truncate(conflict.content, length: 200) %></code></pre>
+      </div>
+      
+      <div class="col-6">
+        <h6 class="text-muted">Incoming Change</h6>
+        <pre class="bg-light p-2 border rounded small"><code><%= truncate(conflict.incoming_content, length: 200) %></code></pre>
+      </div>
+    </div>
+    
+    <% if conflict.changed_lines.present? %>
+      <div class="mt-3">
+        <h6 class="text-muted">Specific Line Changes:</h6>
+        <% conflict.changed_lines.each do |line_num, changes| %>
+          <div class="row mb-2">
+            <div class="col-1">
+              <small class="badge bg-secondary">L<%= line_num %></small>
+            </div>
+            <div class="col-5">
+              <small class="text-muted">Existing:</small>
+              <code class="d-block bg-light p-1 border rounded"><%= changes['existing'] || 'N/A' %></code>
+            </div>
+            <div class="col-5">
+              <small class="text-muted">Incoming:</small>
+              <code class="d-block bg-light p-1 border rounded"><%= changes['incoming'] || 'N/A' %></code>
+            </div>
+          </div>
+        <% end %>
+      </div>
+    <% end %>
+    
+  <div class="mt-3 d-flex gap-2">
+      <button class="btn btn-success btn-sm resolve-conflict-btn" 
+              data-conflict-id="<%= conflict.id %>">
+        ✅ Accept Incoming
+      </button>
+      
+      <button class="btn btn-outline-secondary btn-sm ignore-conflict-btn" 
+              data-conflict-id="<%= conflict.id %>">
+        ❌ Keep Mine
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Add event listeners for this specific conflict
+(function() {
+  const conflictId = <%= conflict.id %>;
+  
+  // Resolve conflict handler
+  const resolveBtn = document.querySelector(`[data-conflict-id="${conflictId}"].resolve-conflict-btn`);
+  if (resolveBtn && !resolveBtn.hasAttribute('data-listener-added')) {
+    resolveBtn.setAttribute('data-listener-added', 'true');
+    resolveBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (!confirm("Accept the incoming change?")) return;
+      
+      fetch(`/conflicts/${conflictId}/resolve`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'resolved') {
+          const conflictElement = document.getElementById(`conflict_${conflictId}`);
+          if (conflictElement) {
+            conflictElement.remove();
+            
+            // Update conflict count
+            const countBadge = document.getElementById("conflict-count");
+            if (countBadge) {
+              const currentCount = parseInt(countBadge.textContent) || 0;
+              const newCount = Math.max(0, currentCount - 1);
+              countBadge.textContent = newCount;
+              
+              if (newCount === 0) {
+                const container = document.getElementById("conflicts-container");
+                if (container) {
+                  container.innerHTML = '<div class="text-muted text-center py-4"><i>No conflicts detected</i></div>';
+                }
+              }
+            }
+          }
+          console.log('Conflict resolved successfully');
+        }
+      })
+      .catch(error => {
+        console.error('Error resolving conflict:', error);
+        alert('Error resolving conflict. Please try again.');
+      });
+    });
+  }
+  
+  // Ignore conflict handler
+  const ignoreBtn = document.querySelector(`[data-conflict-id="${conflictId}"].ignore-conflict-btn`);
+  if (ignoreBtn && !ignoreBtn.hasAttribute('data-listener-added')) {
+    ignoreBtn.setAttribute('data-listener-added', 'true');
+    ignoreBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      if (!confirm("Keep your version and ignore the conflict?")) return;
+      
+      fetch(`/conflicts/${conflictId}/ignore`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]')?.content || ''
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'ignored') {
+          const conflictElement = document.getElementById(`conflict_${conflictId}`);
+          if (conflictElement) {
+            conflictElement.remove();
+            
+            // Update conflict count
+            const countBadge = document.getElementById("conflict-count");
+            if (countBadge) {
+              const currentCount = parseInt(countBadge.textContent) || 0;
+              const newCount = Math.max(0, currentCount - 1);
+              countBadge.textContent = newCount;
+              
+              if (newCount === 0) {
+                const container = document.getElementById("conflicts-container");
+                if (container) {
+                  container.innerHTML = '<div class="text-muted text-center py-4"><i>No conflicts detected</i></div>';
+                }
+              }
+            }
+          }
+          console.log('Conflict ignored successfully');
+        }
+      })
+      .catch(error => {
+        console.error('Error ignoring conflict:', error);
+        alert('Error ignoring conflict. Please try again.');
+      });
+    });
+  }
+})();
+</script>
