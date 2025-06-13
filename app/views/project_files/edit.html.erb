@@ -13,6 +13,11 @@
     </div>
   </div>
 
+  <!-- Notifications Area -->
+  <div id="notifications" class="notifications-container px-3 pt-2" style="min-height: 0;">
+    <!-- Dynamic notifications will be inserted here -->
+  </div>
+
   <!-- Editor and Conflict Panel -->
   <div class="d-flex flex-grow-1">
     <div id="editor" class="flex-grow-1" style="height: 100%; border-right: 1px solid #ccc;"></div>
@@ -21,7 +26,9 @@
     <div id="editor_conflicts" class="bg-light p-3" style="width: 30%; overflow-y: auto;">
       <h5>Conflicts</h5>
       <%= turbo_frame_tag "editor_conflicts" do %>
-        <%= render partial: "conflicts/conflict", collection: @conflicts, as: :conflict %>
+        <div id="conflicts-list">
+          <%= render partial: "conflicts/conflict", collection: @conflicts, as: :conflict %>
+        </div>
       <% end %>
     </div>
   </div>
@@ -48,6 +55,31 @@
   let lastContent = initialContent;
   let isApplyingRemoteUpdate = false;
 
+  // Utility function to show notifications
+  function showNotification(message, type = 'info') {
+    const notificationsContainer = document.getElementById('notifications');
+    const alertClass = type === 'error' ? 'alert-danger' : 
+                      type === 'success' ? 'alert-success' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show`;
+    notification.setAttribute('role', 'alert');
+    notification.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    notificationsContainer.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 5000);
+  }
+
   require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" } });
 
   require(["vs/editor/editor.main"], function () {
@@ -63,7 +95,7 @@
     });
 
     const consumer = createConsumer();
-
+    
     const channel = consumer.subscriptions.create(
       {
         channel: "EditorChannel",
@@ -73,32 +105,186 @@
       },
       {
         received(data) {
-          if (data.conflict) {
-            // Conflict notification for current user
-            fetch(`/conflicts/panel?file_id=${fileName}&branch=${branchName}&project_id=${projectId}`)
-              .then(resp => resp.text())
-              .then(html => {
-                const turboFrame = document.getElementById("editor_conflicts");
-                if (turboFrame) turboFrame.innerHTML = html;
-              });
+          console.log('Received data:', data);
+          
+          // Handle conflict resolution broadcasts
+          if (data.type === "conflict_resolution") {
+            console.log('Received conflict resolution:', data.action);
+            
+            // Always update the editor content with the resolved content
+            if (!isApplyingRemoteUpdate) {
+              isApplyingRemoteUpdate = true;
+              
+              const currentPosition = editor.getPosition();
+              editor.setValue(data.content);
+              editor.setPosition(currentPosition);
+              
+              lastContent = data.content;
+              
+              // Show notification about the resolution
+              const message = data.action === "accept" 
+                ? "✅ Conflict resolved - incoming changes were accepted"
+                : "✅ Conflict ignored - original content was kept";
+              showNotification(message, 'info');
+              
+              setTimeout(() => (isApplyingRemoteUpdate = false), 100);
+            }
+            
+            // Refresh the conflicts panel to remove resolved conflicts
+            refreshConflictsPanel();
             return;
           }
-
-          if (data.content !== editor.getValue() && !isApplyingRemoteUpdate) {
+          
+          // Handle live content sync for newly joined users
+          if (data.type === "live_content_sync") {
+            console.log('Received live content sync');
+            if (data.content !== editor.getValue() && !isApplyingRemoteUpdate) {
+              isApplyingRemoteUpdate = true;
+              
+              const currentPosition = editor.getPosition();
+              editor.setValue(data.content);
+              editor.setPosition(currentPosition);
+              
+              lastContent = data.content;
+              showNotification('Synced with live content from other editors', 'info');
+              setTimeout(() => (isApplyingRemoteUpdate = false), 100);
+            }
+            return;
+          }
+          
+          // Handle conflict notifications
+          if (data.conflict) {
+            // Conflict notification for current user
+            showNotification(`🔴 Conflict detected on lines: ${data.lines_changed.join(', ')}`, 'warning');
+            
+            // Refresh the conflicts panel
+            refreshConflictsPanel();
+            return;
+          }
+          
+          // Handle regular content updates from other users
+          if (data.sender_id !== undefined && data.content !== editor.getValue() && !isApplyingRemoteUpdate) {
             isApplyingRemoteUpdate = true;
-
+            
             const currentPosition = editor.getPosition();
             editor.setValue(data.content);
             editor.setPosition(currentPosition);
-
+            
             lastContent = data.content;
             setTimeout(() => (isApplyingRemoteUpdate = false), 100);
           }
+        },
+        
+        connected() {
+          console.log('Connected to EditorChannel');
+          showNotification('Connected to collaborative editor', 'success');
+          
+          // Set initial content as the baseline for new sessions
+          lastContent = editor.getValue();
+        },
+        
+        disconnected() {
+          console.log('Disconnected from EditorChannel');
+          showNotification('Disconnected from collaborative editor', 'warning');
         }
       }
     );
 
-    // Track changes and broadcast
+    // Function to refresh conflicts panel
+    function refreshConflictsPanel() {
+      fetch(`/conflicts/panel?file_id=${fileName}&branch=${branchName}&project_id=${projectId}`)
+        .then(resp => resp.text())
+        .then(html => {
+          const conflictsList = document.getElementById("conflicts-list");
+          if (conflictsList) {
+            conflictsList.innerHTML = html;
+          }
+        })
+        .catch(err => {
+          console.error('Error refreshing conflicts panel:', err);
+          showNotification('Error refreshing conflicts panel', 'error');
+        });
+    }
+
+    // Handle conflict resolution form submissions
+    document.addEventListener('click', (event) => {
+      // Handle resolve conflict button
+      if (event.target.matches('input[value="Resolve (Accept Changes)"]')) {
+        event.preventDefault();
+        const form = event.target.closest('form');
+        if (form) {
+          handleConflictResolution(form, 'resolve');
+        }
+      }
+      
+      // Handle ignore conflict button
+      if (event.target.matches('input[value="Ignore (Keep Original)"]')) {
+        event.preventDefault();
+        const form = event.target.closest('form');
+        if (form) {
+          handleConflictResolution(form, 'ignore');
+        }
+      }
+    });
+
+    // Function to handle conflict resolution
+    function handleConflictResolution(form, action) {
+      const button = form.querySelector(`input[value*="${action === 'resolve' ? 'Accept' : 'Keep'}"]`);
+      const originalValue = button.value;
+      
+      button.value = 'Processing...';
+      button.disabled = true;
+      
+      const formData = new FormData(form);
+      const url = form.action;
+      
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
+          'Accept': 'application/json'
+        },
+        body: formData
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'resolved' || data.status === 'ignored') {
+          // Show success notification
+          showNotification(data.message, 'success');
+          
+          // Update editor content immediately if provided
+          if (data.content && data.content !== editor.getValue()) {
+            isApplyingRemoteUpdate = true;
+            const currentPosition = editor.getPosition();
+            editor.setValue(data.content);
+            editor.setPosition(currentPosition);
+            lastContent = data.content;
+            setTimeout(() => (isApplyingRemoteUpdate = false), 100);
+          }
+          
+          // Remove the conflict from UI
+          const conflictElement = form.closest('.conflict-item');
+          if (conflictElement) {
+            conflictElement.remove();
+          }
+          
+          // Refresh conflicts panel to ensure it's up to date
+          refreshConflictsPanel();
+        } else {
+          showNotification(data.message || 'Error processing conflict', 'error');
+        }
+      })
+      .catch(error => {
+        console.error('Error resolving conflict:', error);
+        showNotification('Network error while processing conflict', 'error');
+      })
+      .finally(() => {
+        button.value = originalValue;
+        button.disabled = false;
+      });
+    }
+
+    // Enhanced change tracking with better conflict detection
     let debounceTimer;
     editor.onDidChangeModelContent(() => {
       if (isApplyingRemoteUpdate) return;
@@ -108,19 +294,28 @@
       const newLines = newContent.split("\n");
 
       const changed_lines = {};
-      newLines.forEach((line, idx) => {
-        if (baseLines[idx] !== line) changed_lines[idx + 1] = line;
-      });
+      const maxLines = Math.max(baseLines.length, newLines.length);
+      
+      for (let i = 0; i < maxLines; i++) {
+        const baseLine = baseLines[i] || "";
+        const newLine = newLines[i] || "";
+        
+        if (baseLine !== newLine) {
+          changed_lines[i + 1] = newLine;
+        }
+      }
 
       lastContent = newContent;
 
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        channel.send({
-          content: newContent,
-          base_content: baseLines.join("\n"),
-          changed_lines: changed_lines
-        });
+        if (Object.keys(changed_lines).length > 0) {
+          channel.send({
+            content: newContent,
+            base_content: baseLines.join("\n"),
+            changed_lines: changed_lines
+          });
+        }
       }, 300);
     });
 
@@ -138,7 +333,7 @@
         },
         body: JSON.stringify({
           content: content,
-          path: path // send path in JSON body instead of URL
+          path: path
         })
       })
       .then(resp => resp.json())
@@ -146,14 +341,22 @@
         if (data.status === "success") {
           callback();
         } else {
-          alert("❌ Save failed: " + data.message);
+          showNotification(`Save failed: ${data.message}`, 'error');
         }
+      })
+      .catch(err => {
+        console.error('Save error:', err);
+        showNotification('Save failed due to network error', 'error');
       });
     }
 
-
-    // Save + Commit + Exit
+    // Save Button
     document.getElementById("saveBtn").addEventListener("click", () => {
+      const saveButton = document.getElementById("saveBtn");
+      const originalText = saveButton.innerHTML;
+      saveButton.innerHTML = "💾 Saving...";
+      saveButton.disabled = true;
+
       const content = editor.getValue();
       const path = new URLSearchParams(window.location.search).get("path");
       const fileName = "<%= @file_name %>";
@@ -169,20 +372,37 @@
           content: content,
           path: path
         })
-      }).then(response => response.json())
-        .then(data => {
-          if (data.status === "success") {
-            alert("✅ File saved successfully!");
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === "success") {
+          showNotification('File saved successfully!', 'success');
+          setTimeout(() => {
             window.location.href = redirectUrl;
-          } else {
-            alert("❌ Error: " + data.message);
-          }
-        });
+          }, 1500);
+        } else {
+          showNotification(`Error: ${data.message}`, 'error');
+        }
+      })
+      .catch(err => {
+        console.error('Save error:', err);
+        showNotification('Save failed due to network error', 'error');
+      })
+      .finally(() => {
+        saveButton.innerHTML = originalText;
+        saveButton.disabled = false;
+      });
     });
 
+    // Commit Button
     document.getElementById("commitBtn").addEventListener("click", () => {
       const message = prompt("Enter commit message:");
       if (!message) return;
+
+      const commitButton = document.getElementById("commitBtn");
+      const originalText = commitButton.innerHTML;
+      commitButton.innerHTML = "✅ Committing...";
+      commitButton.disabled = true;
 
       const path = new URLSearchParams(window.location.search).get("path");
 
@@ -193,24 +413,105 @@
             "Content-Type": "application/json",
             "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
           },
-          body: JSON.stringify({ message, path })  // Send path in the request
+          body: JSON.stringify({ message, path })
         })
         .then(resp => resp.json())
         .then(data => {
           if (data.status === "success") {
-            alert("✅ Commit successful.");
-            window.location.href = redirectUrl;
+            showNotification('Commit successful!', 'success');
+            setTimeout(() => {
+              window.location.href = redirectUrl;
+            }, 1500);
           } else {
-            alert("❌ Commit failed: " + data.message);
+            showNotification(`Commit failed: ${data.message}`, 'error');
           }
+        })
+        .catch(err => {
+          console.error('Commit error:', err);
+          showNotification('Commit failed due to network error', 'error');
+        })
+        .finally(() => {
+          commitButton.innerHTML = originalText;
+          commitButton.disabled = false;
         });
       });
     });
 
+    // Exit Button
     document.getElementById("exitBtn").addEventListener("click", () => {
       if (confirm("Exit without saving?")) {
         window.location.href = redirectUrl;
       }
     });
+
+    // Initialize conflicts panel on page load
+    refreshConflictsPanel();
   });
 </script>
+
+<style>
+  .notifications-container {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  .notifications-container:empty {
+    display: none;
+  }
+  
+  .alert {
+    margin-bottom: 0.5rem;
+  }
+  
+  .alert:last-child {
+    margin-bottom: 0;
+  }
+  
+  .conflict-item {
+    transition: all 0.3s ease;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    background-color: #fff;
+  }
+  
+  .conflict-item:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  }
+  
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .diff-container {
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 0.25rem;
+    margin: 0.5rem 0;
+  }
+  
+  .diff-line {
+    padding: 0.25rem 0.5rem;
+    white-space: pre-wrap;
+  }
+  
+  .diff-added {
+    background-color: #d4edda;
+    color: #155724;
+  }
+  
+  .diff-removed {
+    background-color: #f8d7da;
+    color: #721c24;
+  }
+  
+  .diff-unchanged {
+    background-color: #f8f9fa;
+    color: #6c757d;
+  }
+</style>
