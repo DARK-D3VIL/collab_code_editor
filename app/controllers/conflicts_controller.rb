@@ -49,7 +49,7 @@ class ConflictsController < ApplicationController
 
     # Get the user's current content (the content they want to keep)
     user_current_content = get_user_current_content(@conflict)
-    
+
     @conflict.destroy
 
     # Update live content with user's current content and broadcast
@@ -161,15 +161,15 @@ class ConflictsController < ApplicationController
 
   def update_live_content_and_broadcast(content, action_type)
     stream_key = "editor_#{@conflict.project_id}_#{@conflict.branch}_#{@conflict.file_path}"
-    
+
     Rails.logger.info "[ConflictsController] Updating live content and broadcasting for #{action_type}"
     Rails.logger.info "[ConflictsController] Stream key: #{stream_key}"
 
     # Update the live content in EditorChannel
     EditorChannel.update_live_content_for_file(
-      @conflict.project_id, 
-      @conflict.branch, 
-      @conflict.file_path, 
+      @conflict.project_id,
+      @conflict.branch,
+      @conflict.file_path,
       content
     )
 
