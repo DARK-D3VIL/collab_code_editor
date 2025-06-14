@@ -93,7 +93,6 @@ class ProjectsController < ApplicationController
                               .where(active: true)
                               .map(&:user)
   end
-
   def join
     @project = Project.find_by(slug: params[:project_code])
     if @project.nil?
@@ -101,19 +100,32 @@ class ProjectsController < ApplicationController
       return
     end
 
+    # Check if user is already a member
     membership = @project.project_memberships.find_by(user: current_user)
     if membership&.active?
       redirect_to project_path(@project), notice: "You are already a member of this project."
+      return
     elsif membership
       redirect_to projects_path, alert: "You have been removed from this project."
+      return
+    end
+
+    # Check if user already has a pending request
+    if @project.has_pending_request?(current_user)
+      redirect_to projects_path, alert: "You already have a pending request for this project."
+      return
+    end
+
+    # Create join request
+    join_request = @project.project_join_requests.build(user: current_user)
+
+    if join_request.save
+      # Send email notification to project owner
+      ProjectRequestMailerJob.perform_later(:new_join_request, @project.owner.id, @project.id, join_request.id)
+
+      redirect_to projects_path, notice: "Join request sent to project owner. You'll be notified once approved."
     else
-      main_branch = @project.branches.find_by(name: "main")
-      ProjectMembership.create!(
-        user: current_user,
-        project: @project,
-        current_branch: main_branch
-      )
-      redirect_to project_project_files_path(@project), notice: "Successfully joined the project."
+      redirect_to projects_path, alert: "Failed to send join request. Please try again."
     end
   end
 

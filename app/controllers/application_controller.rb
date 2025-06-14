@@ -21,4 +21,13 @@ class ApplicationController < ActionController::Base
     logger.error "Rendering 500: #{exception.message}" if exception
     render template: "errors/internal_server_error", status: :internal_server_error
   end
+
+  protected
+
+  def current_user_membership
+    return nil unless @project && current_user
+    @current_user_membership ||= @project.project_memberships.find_by(user_id: current_user.id)
+  end
+
+  helper_method :current_user_membership
 end

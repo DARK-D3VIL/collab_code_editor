@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background-color: #d4edda; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+    .content { background-color: #ffffff; padding: 20px; border: 1px solid #dee2e6; border-radius: 5px; }
+    .button { display: inline-block; padding: 10px 20px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; margin: 10px 5px; }
+    .button:hover { background-color: #218838; }
+    .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #dee2e6; font-size: 12px; color: #6c757d; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h2>✅ Request Approved!</h2>
+    </div>
+    
+    <div class="content">
+      <p>Hello <%= @user.username || @user.email %>,</p>
+      
+      <p>Great news! Your request to join the project "<strong><%= @project.name %></strong>" has been approved.</p>
+      
+      <p>You can now access the project and start collaborating with other team members.</p>
+      
+      <p>
+        <a href="<%= project_url(@project) %>" class="button">
+          Access Project
+        </a>
+      </p>
+      
+      <p>Welcome to the team!</p>
+    </div>
+    
+    <div class="footer">
+      <p>This is an automated message. Please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>

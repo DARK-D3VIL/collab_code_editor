@@ -1,5 +1,12 @@
 module ProjectFilesHelper
-  def language_for_extension(file_extension)
+  def language_for_extension(file_name)
+    ext = File.extname(file_name).delete(".").downcase
+    base = File.basename(file_name)
+
+    return "ruby" if %w[Gemfile Rakefile Guardfile Capfile config.ru].include?(base)
+    return "dockerfile" if base == "Dockerfile"
+    return "makefile" if base == "Makefile"
+
     {
       "rb" => "ruby",
       "js" => "javascript",
@@ -39,17 +46,21 @@ module ProjectFilesHelper
       "cfg" => "ini",
       "dockerfile" => "dockerfile",
       "makefile" => "makefile"
-    }[file_extension.to_s.downcase] || "plaintext"
+    }[ext] || "plaintext"
   end
 
   def editable_file?(file_name)
-    editable_extensions = %w[
-      rb js ts jsx tsx html htm css scss less json yaml yml xml md markdown
-      py java c cpp h cs go php sh sql swift txt rs dart scala lua r ini toml cfg
-      dockerfile makefile
+    non_editable_extensions = %w[
+      ipynb pdf zip rar 7z tar gz bz2 xz
+      exe dll bin class jar so o a
+      png jpg jpeg gif bmp svg webp ico
+      mp4 mkv avi mov wmv flv
+      mp3 wav ogg flac
+      ppt pptx xls xlsx doc docx
+      iso dmg
     ]
 
     ext = File.extname(file_name).delete(".").downcase
-    editable_extensions.include?(ext)
+    !non_editable_extensions.include?(ext)
   end
 end

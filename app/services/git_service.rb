@@ -95,46 +95,42 @@ class GitService
     { success: false, error: e.message }
   end
 
+  def revert_commit(sha, author, user)
+    commit_to_revert = @repo.lookup(sha)
+    current_commit = @repo.head.target
 
+    revert_index = @repo.revert_commit(commit_to_revert, current_commit)
 
-  # def revert_commit(sha, author, user)
-  #   commit_to_revert = @repo.lookup(sha)
-  #   current_commit = @repo.head.target
+    return { success: false, conflict: true } if revert_index.conflicts?
 
-  #   revert_index = @repo.revert_commit(commit_to_revert, current_commit)
+    tree_oid = revert_index.write_tree(@repo)
 
-  #   if revert_index.conflicts?
-  #     return { success: false, conflict: true }
-  #   end
+    branch_name = @repo.head.name.sub("refs/heads/", "")
+    branch = @project.branches.find_by(name: branch_name)
 
-  #   tree_oid = revert_index.write_tree(@repo)
+    commit_message = "Revert commit #{sha[0..6]}"
+    commit_oid = Rugged::Commit.create(@repo, {
+      message: commit_message,
+      author: author,
+      committer: author,
+      tree: tree_oid,
+      parents: [current_commit],
+      update_ref: "HEAD"
+    })
 
-  #   branch_name = @repo.head.name.sub("refs/heads/", "")
-  #   branch = @project.branches.find_by(name: branch_name)
+    Commit.create!(
+      user_id: user.id,
+      project_id: @project.id,
+      branch_id: branch.id,
+      message: commit_message,
+      sha: commit_oid,
+      parent_sha: current_commit.oid
+    )
 
-  #   commit_message = "Revert commit #{sha[0..6]}"
-  #   commit_oid = Rugged::Commit.create(@repo, {
-  #     message: commit_message,
-  #     author: author,
-  #     committer: author,
-  #     tree: tree_oid,
-  #     parents: [current_commit],
-  #     update_ref: "HEAD"
-  #   })
-
-  #   # Save to DB
-  #   Commit.create!(
-  #     user_id: user.id,
-  #     project_id: @project.id,
-  #     branch_id: branch.id,
-  #     message: commit_message,
-  #     sha: commit_oid,
-  #     parent_sha: current_commit.oid
-  #   )
-
-  #   { success: true, sha: commit_oid }
-  # end
-
+    { success: true, sha: commit_oid }
+  rescue => e
+    { success: false, error: e.message }
+  end
 
   def switch_branch(branch_name)
     `cd #{@repo_path} && git checkout #{branch_name}`

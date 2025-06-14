@@ -5,7 +5,8 @@ class ProjectFilesController < ApplicationController
   before_action :set_project
   before_action :authorize_user!
   before_action :set_path_vars, only: [ :index, :create_folder ]
-  before_action :switch_to_user_branch
+  before_action :authorize_writer!, only: [ :save, :create, :create_folder, :commit, :commit_all, :destroy_file, :destroy_folder, :new ]
+  before_action :switch_to_user_branch, except: [ :destroy_file, :destroy_folder ] # Exclude delete actions
 
   def index
     @project = current_user.projects.find(params[:project_id])
@@ -22,9 +23,19 @@ class ProjectFilesController < ApplicationController
       `git status --porcelain`.present?
     end
 
-    entries = FileBrowserService.new(@absolute_path).list_entries
-    @folders = entries.select { |entry| File.directory?(@absolute_path.join(entry)) }
-    @files   = entries.select   { |entry| File.file?(@absolute_path.join(entry)) }
+    entries = FileBrowserService.new(@absolute_path).list_entries.reject do |entry|
+      entry.end_with?(".deleted")
+    end
+
+    @files = entries.select do |entry|
+      file_path = @absolute_path.join(entry)
+      File.file?(file_path)
+    end
+
+    @folders = entries.select do |entry|
+      folder_path = @absolute_path.join(entry)
+      File.directory?(folder_path)
+    end
 
     @project_repo_path = @repo_path
     @current_branch = current_branch_for_project&.name || "main"
@@ -39,7 +50,7 @@ class ProjectFilesController < ApplicationController
     @project = current_user.projects.find(params[:project_id])
     @current_path = params[:path].to_s
     @file_name = params[:id]
-
+    @can_edit = current_user_membership&.can_write? || @project.owner == current_user
     unless editable_file?(@file_name)
       redirect_to project_project_files_path(@project, path: @current_path), alert: "This file type is not supported for editing." and return
     end
@@ -60,8 +71,7 @@ class ProjectFilesController < ApplicationController
 
     @branch_name = current_branch_for_project.name
 
-    ext = File.extname(@file_name).delete(".")
-    @language = language_for_extension(ext)
+    @language = language_for_extension(@file_name)
   end
 
   def save
@@ -144,10 +154,10 @@ class ProjectFilesController < ApplicationController
     abs_path = project_repo_path.join(path, file)
 
     if File.exist?(abs_path)
-      File.delete(abs_path)
-      # @project.files.where(name: file, path: path).destroy_all
-      sha = commit_changes(path: path, message: "Deleted #{file}")
-      flash[:notice] = sha ? "File deleted and committed." : "File deleted, but commit failed."
+      # Actually delete the file and create marker for git tracking
+      FileUtils.rm_f(abs_path)
+      File.write("#{abs_path}.deleted", "")
+      flash[:notice] = "File deleted successfully."
     else
       flash[:alert] = "File not found."
     end
@@ -161,14 +171,13 @@ class ProjectFilesController < ApplicationController
     abs_path = project_repo_path.join(path, folder)
 
     if abs_path.exist? && abs_path.directory?
+      # Actually delete the folder and create marker for git tracking
       FileUtils.rm_rf(abs_path)
-      @project.files.where("path LIKE ?", "#{File.join(path, folder)}%").destroy_all
-      sha = commit_changes(path: path, message: "Deleted #{folder}")
-      flash[:notice] = sha ? "Folder deleted and committed." : "Folder deleted, but commit failed."
+      File.write("#{abs_path}.deleted", "")
+      flash[:notice] = "Folder deleted successfully."
     else
       flash[:alert] = "Folder not found."
     end
-
     redirect_to project_project_files_path(@project, path: path)
   end
 
@@ -206,12 +215,41 @@ class ProjectFilesController < ApplicationController
 
     repo = Rugged::Repository.new(repo_path.to_s)
 
+    # Check if we're already on the correct branch
+    current_branch_name = repo.head.name.sub("refs/heads/", "") rescue "main"
+    return if current_branch_name == branch.name
+
     rugged_branch = repo.branches[branch.name]
     raise "Branch '#{branch.name}' not found" unless rugged_branch
 
+    # Use safe checkout strategy instead of force
+    repo.checkout(rugged_branch.name, strategy: :safe)
+  rescue Rugged::CheckoutConflictError
+    # Handle conflicts by using force checkout but preserve unsaved files
+    preserve_working_changes(repo_path)
     repo.checkout(rugged_branch.name, strategy: :force)
+    restore_working_changes(repo_path)
   rescue => e
     redirect_to project_projects_path, alert: "Git error: #{e.message}"
+  end
+
+  def preserve_working_changes(repo_path)
+    @preserved_changes = {}
+
+    Dir.glob("#{repo_path}/**/*.unsaved").each do |unsaved_file|
+      relative_path = Pathname.new(unsaved_file).relative_path_from(Pathname.new(repo_path.to_s))
+      @preserved_changes[relative_path.to_s] = File.read(unsaved_file)
+    end
+  end
+
+  def restore_working_changes(repo_path)
+    return unless @preserved_changes
+
+    @preserved_changes.each do |relative_path, content|
+      full_path = File.join(repo_path, relative_path)
+      FileUtils.mkdir_p(File.dirname(full_path))
+      File.write(full_path, content)
+    end
   end
 
   def current_branch_for_project
@@ -238,7 +276,18 @@ class ProjectFilesController < ApplicationController
 
       index = repo.index
       index.reload
-      path.present? ? index.add_all(path) : index.add_all
+
+      # Handle both specific path and all changes
+      if path.present?
+        index.add_all(path)
+      else
+        index.add_all
+        # Also remove deleted files from index
+        index.remove_all do |path_spec, matched_pathspecs|
+          !File.exist?(File.join(repo_path, path_spec))
+        end
+      end
+
       index.write
       tree_oid = index.write_tree(repo)
 
@@ -282,14 +331,18 @@ class ProjectFilesController < ApplicationController
   def restore_unsaved_files!(repo_path, relative_path = nil)
     base_dir = relative_path.present? ? File.join(repo_path, relative_path) : repo_path
 
+    # Restore unsaved files
     Dir.glob("#{base_dir}/**/*.unsaved").each do |unsaved_path|
       original_path = unsaved_path.sub(/\.unsaved$/, "")
-
-      # Only restore if the original exists (or optionally, always create it)
       if File.exist?(original_path)
         File.write(original_path, File.read(unsaved_path))
         File.delete(unsaved_path)
       end
+    end
+
+    # Clean up deletion markers (files are already deleted)
+    Dir.glob("#{base_dir}/**/*.deleted").each do |marker_path|
+      File.delete(marker_path) if File.exist?(marker_path)
     end
   end
 
@@ -305,5 +358,17 @@ class ProjectFilesController < ApplicationController
     else
       "#{(seconds / 86400).to_i} days ago"
     end
+  end
+
+  def authorize_writer!
+    membership = current_user_membership
+    unless @project.owner == current_user || (membership&.active? && membership&.can_write?)
+      redirect_to project_project_files_path(@project), alert: "You need writer permission to perform this action."
+    end
+  end
+
+  # NEW: Helper method to get current user's membership
+  def current_user_membership
+    @current_user_membership ||= @project.project_memberships.find_by(user_id: current_user.id)
   end
 end

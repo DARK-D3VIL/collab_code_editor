@@ -75,3 +75,4 @@ gem "importmap-rails", "~> 2.1"
 gem "omniauth-github"
 gem "octokit" # For GitHub API
 gem "omniauth-rails_csrf_protection"
+gem "letter_opener", group: :development

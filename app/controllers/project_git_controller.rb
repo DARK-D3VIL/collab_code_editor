@@ -4,6 +4,7 @@ class ProjectGitController < ApplicationController
   before_action :authorize_user!
   before_action :set_repo
   before_action :set_git_service
+  before_action :check_write_permission, only: [ :create_branch, :switch, :revert, :rollback, :merge, :destroy_branch ]
 
   def index
     @branches = @project.branches.order(:created_at)
@@ -30,7 +31,6 @@ class ProjectGitController < ApplicationController
     end
   end
 
-
   def switch
     branch = @project.branches.find(params[:id])
     current_membership.update!(current_branch: branch)
@@ -46,15 +46,11 @@ class ProjectGitController < ApplicationController
     @diff = @git_service.commit_diff(params[:sha])
   end
 
-  # def rollback
-  #   sha = params[:sha]
-  #   @git_service.rollback_to_commit(sha)
-  #   redirect_to project_git_branch_commits_path(@project, params[:id]), notice: "Rolled back to commit #{sha[0..6]}"
-  # end
-
-  def rollback
+  def revert
     sha = params[:sha]
-    result = @git_service.rollback_to_commit(sha)
+    author = { name: current_user.username, email: current_user.email, time: Time.now }
+
+    result = @git_service.revert_commit(sha, author, current_user)
 
     if result[:success]
       redirect_to project_git_branch_commits_path(@project, params[:id]), notice: "Reverted commit #{sha[0..6]}"
@@ -65,14 +61,27 @@ class ProjectGitController < ApplicationController
     end
   end
 
+  def rollback
+    sha = params[:sha]
+    result = @git_service.rollback_to_commit(sha)
 
+    if result[:success]
+      redirect_to project_git_branch_commits_path(@project, params[:id]), notice: "Rolled back commit #{sha[0..6]}"
+    elsif result[:conflict]
+      redirect_to project_git_branch_commits_path(@project, params[:id]), alert: "Conflict occurred during rolled. Resolve manually."
+    else
+      redirect_to project_git_branch_commits_path(@project, params[:id]), alert: "Rollback failed."
+    end
+  end
 
   def merge
     source_branch = @project.branches.find(params[:id])
-    result = @git_service.merge_branch(source_branch.name, "main", author: git_author_hash)
+    target_branch = current_branch_for_project.name
+
+    result = @git_service.merge_branch(source_branch.name, target_branch, author: git_author_hash)
 
     if result[:success]
-      redirect_to project_git_branches_path(@project), notice: "Merged successfully. Commit: #{result[:sha]}"
+      redirect_to project_git_branches_path(@project), notice: "Merged successfully into #{target_branch}. Commit: #{result[:sha]}"
     elsif result[:conflict]
       redirect_to project_git_branches_path(@project), alert: "Merge conflict occurred. Please resolve manually."
     else
@@ -80,14 +89,26 @@ class ProjectGitController < ApplicationController
     end
   end
 
+  def destroy_branch
+    branch = @project.branches.find(params[:id])
+
+    if branch.name == "main" || branch.name == current_branch_for_project.name
+      redirect_to project_git_branches_path(@project), alert: "Cannot delete main or current branch."
+      return
+    end
+
+    branch.destroy
+    redirect_to project_git_branches_path(@project), notice: "Branch deleted successfully."
+  end
+
   def show
-    @branches = @project.branches.pluck(:name)  # Ensure this is set properly
+    @branches = @project.branches.pluck(:name)
     puts @branches
 
     @graph_commits = []
     repo = @repo
 
-    return if @branches.blank? || !repo  # Prevent further processing if no branches or repo is nil
+    return if @branches.blank? || !repo
 
     walker = Rugged::Walker.new(repo)
 
@@ -115,7 +136,6 @@ class ProjectGitController < ApplicationController
     puts @graph_commits
   end
 
-
   private
 
   def set_project
@@ -136,7 +156,7 @@ class ProjectGitController < ApplicationController
   end
 
   def current_membership
-    current_user.project_memberships.find_by(project_id: @project.id)
+    @current_membership ||= current_user.project_memberships.find_by(project_id: @project.id)
   end
 
   def current_branch_for_project
@@ -154,6 +174,19 @@ class ProjectGitController < ApplicationController
     end
   end
 
+  def check_write_permission
+    membership = current_membership
+
+    # Allow if user is owner
+    return if @project.owner == current_user
+
+    # Check if user has write permissions
+    unless membership&.can_write?
+      redirect_to project_git_branches_path(@project), alert: "You don't have permission to perform this action. Read-only access."
+      false
+    end
+  end
+
   def git_author_hash
     {
       name: current_user.username || current_user.email,
@@ -161,4 +194,10 @@ class ProjectGitController < ApplicationController
       time: Time.now
     }
   end
+
+  # Helper method to check if current user can write
+  def can_write?
+    @can_write ||= @project.owner == current_user || current_membership&.can_write?
+  end
+  helper_method :can_write?
 end

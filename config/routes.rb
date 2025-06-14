@@ -34,10 +34,15 @@ Rails.application.routes.draw do
     collection do
       post "join"
     end
-    resources :project_members, only: [:index] do
+    resources :project_members, only: [ :index ] do
       member do
         patch :deactivate
         patch :activate
+        patch :change_role
+      end
+      collection do
+        patch :approve_request
+        patch :reject_request
       end
     end
 
@@ -55,14 +60,16 @@ Rails.application.routes.draw do
         post :commit
       end
     end
-    get "git", to: "project_git#show", as: :git
-    get    "git/branches",                  to: "project_git#branches",       as: :git_branches
-    post   "git/branches",                  to: "project_git#create_branch"
-    post   "git/branches/:id/switch",       to: "project_git#switch",         as: :git_switch_branch
-    get    "git/branches/:id/commits",      to: "project_git#commits",        as: :git_branch_commits
-    get    "git/branches/:id/commit/:sha",  to: "project_git#commit_diff",    as: :git_branch_commit
-    post   "git/branches/:id/rollback",     to: "project_git#rollback",       as: :git_branch_rollback
-    post   "git/branches/:id/merge",        to: "project_git#merge",          as: :git_merge_branch
+    get    "git",                         to: "project_git#show",            as: :git
+    get    "git/branches",                to: "project_git#branches",        as: :git_branches
+    post   "git/branches",                to: "project_git#create_branch"
+    post   "git/branches/:id/switch",     to: "project_git#switch",         as: :git_switch_branch
+    get    "git/branches/:id/commits",    to: "project_git#commits",        as: :git_branch_commits
+    get    "git/branches/:id/commit/:sha", to: "project_git#commit_diff",    as: :git_branch_commit
+    post   "git/branches/:id/rollback",   to: "project_git#rollback",       as: :git_branch_rollback
+    post   "git/branches/:id/merge",      to: "project_git#merge",          as: :git_merge_branch
+    delete "git/branches/:id",            to: "project_git#destroy_branch", as: :git_branch
+    post "git/branches/:id/revert", to: "project_git#revert", as: :git_branch_revert
   end
   match "/404", to: "errors#not_found", via: :all
   match "/422", to: "errors#unprocessable_entity", via: :all

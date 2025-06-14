@@ -41,7 +41,7 @@
             <p class="mb-1 text-muted small d-flex align-items-center justify-content-between">
               <span>
                 <i class="bi bi-hash text-secondary"></i>
-                <strong>Slug:</strong>
+                <strong>Project Code:</strong>
                 <span id="slug-<%= project.id %>"><%= project.slug %></span>
               </span>
               <button class="btn btn-sm btn-outline-success d-flex align-items-center gap-1 z-2"
@@ -66,7 +66,7 @@
 
   <!-- Create Project Button -->
   <div class="mt-5 text-center">
-    <%= link_to "➕ Create New Project", new_project_path, class: "btn btn-success btn-lg px-4 py-2 shadow-sm" %>
+    <%= link_to "Create New Project", new_project_path, class: "btn btn-success btn-lg px-4 py-2 shadow-sm" %>
   </div>
 </div>
 <script>

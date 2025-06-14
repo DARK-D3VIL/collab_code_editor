@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_06_12_094312) do
+ActiveRecord::Schema[7.2].define(version: 2025_06_14_060347) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -68,6 +68,18 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_12_094312) do
     t.index ["project_id"], name: "index_project_files_on_project_id"
   end
 
+  create_table "project_join_requests", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "project_id", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["project_id"], name: "index_project_join_requests_on_project_id"
+    t.index ["status"], name: "index_project_join_requests_on_status"
+    t.index ["user_id", "project_id"], name: "index_project_join_requests_on_user_id_and_project_id", unique: true
+    t.index ["user_id"], name: "index_project_join_requests_on_user_id"
+  end
+
   create_table "project_memberships", force: :cascade do |t|
     t.bigint "user_id", null: false
     t.bigint "project_id", null: false
@@ -75,6 +87,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_12_094312) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.boolean "active", default: true, null: false
+    t.integer "role", default: 0, null: false
+    t.index ["project_id", "role"], name: "index_project_memberships_on_project_id_and_role"
     t.index ["project_id"], name: "index_project_memberships_on_project_id"
     t.index ["user_id"], name: "index_project_memberships_on_user_id"
   end
@@ -110,6 +124,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_12_094312) do
   add_foreign_key "conflict_queues", "projects"
   add_foreign_key "conflict_queues", "users"
   add_foreign_key "project_files", "projects"
+  add_foreign_key "project_join_requests", "projects"
+  add_foreign_key "project_join_requests", "users"
   add_foreign_key "project_memberships", "projects"
   add_foreign_key "project_memberships", "users"
 end

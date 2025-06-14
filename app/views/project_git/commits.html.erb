@@ -37,8 +37,21 @@
       </div>
 
       <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="mb-0">Commits for Branch: <%= @branch.name %></h2>
+        <h2 class="mb-0">
+          Commits for Branch: <%= @branch.name %>
+          <% unless can_write? %>
+            <span class="badge bg-secondary ms-2">Read Only</span>
+          <% end %>
+        </h2>
       </div>
+
+      <!-- Read-only notice for readers -->
+      <% unless can_write? %>
+        <div class="alert alert-info mb-4">
+          <i class="bi bi-info-circle me-2"></i>
+          You have read-only access. Rollback and revert operations are not available.
+        </div>
+      <% end %>
 
       <!-- Commit Table -->
       <div class="card shadow-sm">
@@ -61,16 +74,44 @@
                   <td><%= commit[:author] %></td>
                   <td><%= commit[:time].strftime("%d %b %Y %H:%M") %></td>
                   <td class="text-center">
-                    <div class="d-flex justify-content-center gap-2">
-                      <%= link_to project_git_branch_commit_path(@project, @branch.name, sha: commit[:sha]), class: "btn btn-sm btn-outline-primary" do %>
-                        <i class="bi bi-eye me-1"></i> View Diff
-                      <% end %>
-                      <%= button_to project_git_branch_rollback_path(@project, @branch.name), method: :post,
-                            params: { sha: commit[:sha] },
-                            form: { data: { turbo_confirm: "Are you sure you want to rollback to this commit?" } },
-                            class: "btn btn-sm btn-outline-danger" do %>
-                        <i class="bi bi-arrow-counterclockwise me-1"></i> Rollback
-                      <% end %>
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots-vertical"></i>
+                      </button>
+                      <ul class="dropdown-menu dropdown-menu-end">
+                        <li>
+                          <%= link_to project_git_branch_commit_path(@project, @branch.name, sha: commit[:sha]),
+                                      class: "dropdown-item text-primary" do %>
+                            <i class="bi bi-eye me-2"></i> View Diff
+                          <% end %>
+                        </li>
+                        <% if can_write? %>
+                          <li>
+                            <%= button_to project_git_branch_rollback_path(@project, @branch.name),
+                                          method: :post,
+                                          params: { sha: commit[:sha] },
+                                          data: { turbo_confirm: "Rollback to commit #{commit[:sha][0..6]}?" },
+                                          class: "dropdown-item text-danger", form: { class: 'd-inline' } do %>
+                              <i class="bi bi-arrow-counterclockwise me-2"></i> Rollback
+                            <% end %>
+                          </li>
+                          <li>
+                            <%= button_to project_git_branch_revert_path(@project, @branch.name),
+                                          method: :post,
+                                          params: { sha: commit[:sha] },
+                                          data: { turbo_confirm: "Revert commit #{commit[:sha][0..6]}?" },
+                                          class: "dropdown-item text-warning", form: { class: 'd-inline' } do %>
+                              <i class="bi bi-arrow-return-left me-2"></i> Revert
+                            <% end %>
+                          </li>
+                        <% else %>
+                          <li>
+                            <span class="dropdown-item text-muted">
+                              <i class="bi bi-lock me-2"></i> Read Only Access
+                            </span>
+                          </li>
+                        <% end %>
+                      </ul>
                     </div>
                   </td>
                 </tr>
@@ -110,5 +151,8 @@
     color: #0d6efd;
     background-color: #e9f3ff;
     border-left: 4px solid #0d6efd;
+  }
+  .dropdown .dropdown-menu {
+    min-width: 180px;
   }
 </style>

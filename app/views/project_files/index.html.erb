@@ -9,11 +9,21 @@
         Current Branch:
         <span class="badge bg-success"><%= @current_branch %></span>
       </p>
+        <!-- Show user role -->
+      <% if current_user != @project.owner %>
+        <p class="text-muted mb-0">
+          Permission:
+          <span class="badge bg-<%= current_user_membership&.reader? ? 'info' : 'primary' %> ms-2">
+            <%= current_user_membership&.role&.humanize || 'Guest' %>
+          </span>
+        </p>
+      <% end %>
     </div>
 
-    <% if @has_changes %>
+    <!-- Only show commit button for writers and owners -->
+    <% if @has_changes && (current_user == @project.owner || current_user_membership&.can_write?) %>
       <button id="commitBtn" class="btn btn-outline-primary" title="Save and commit changes">
-        <i class="bi bi-check2-circle me-1"></i> Commit Changes
+        <i class="bi bi-check2-circle me-1"></i> Commit All Changes
       </button>
     <% end %>
   </div>
@@ -28,13 +38,15 @@
   <% end %>
 
   <!-- Add Folder -->
-  <div class="mb-4">
-    <%= form_with url: create_folder_project_project_files_path(@project), method: :post, local: true, class: "d-flex gap-2 align-items-center" do |f| %>
-      <%= hidden_field_tag :path, @current_path %>
-      <%= f.text_field :folder_name, placeholder: "New folder name", class: "form-control", required: true %>
-      <%= f.submit "Create Folder", class: "btn btn-outline-success" %>
-    <% end %>
-  </div>
+  <% if current_user == @project.owner || current_user_membership&.can_write? %>
+    <div class="mb-4">
+      <%= form_with url: create_folder_project_project_files_path(@project), method: :post, local: true, class: "d-flex gap-2 align-items-center" do |f| %>
+        <%= hidden_field_tag :path, @current_path %>
+        <%= f.text_field :folder_name, placeholder: "New folder name", class: "form-control", required: true %>
+        <%= f.submit "Create Folder", class: "btn btn-outline-success" %>
+      <% end %>
+    </div>
+  <% end %>
 
   <!-- Folders -->
   <h5 class="mb-3 text-dark"><i class="bi bi-folder-fill text-warning me-1"></i>Folders</h5>
@@ -48,18 +60,20 @@
           <i class="bi bi-folder-fill text-warning me-2"></i>
           <span class="fw-medium text-dark"><%= folder %></span>
         </div>
-        <%= button_to destroy_folder_project_project_files_path(@project, folder: folder, path: @current_path),
-                      method: :delete,
-                      data: { confirm: "Are you sure you want to delete the folder '#{folder}'?" },
-                      class: "btn btn-sm btn-outline-danger",
-                      title: "Delete Folder",
-                      onclick: "event.stopPropagation();" do %>
-          <i class="bi bi-trash"></i>
+        <!-- Only show delete button for writers and owners -->
+        <% if current_user == @project.owner || current_user_membership&.can_write? %>
+          <%= button_to destroy_folder_project_project_files_path(@project, folder: folder, path: @current_path),
+                        method: :delete,
+                        data: { confirm: "Are you sure you want to delete the folder '#{folder}'?" },
+                        class: "btn btn-sm btn-outline-danger",
+                        title: "Delete Folder",
+                        onclick: "event.stopPropagation();" do %>
+            <i class="bi bi-trash"></i>
+          <% end %>
         <% end %>
       </div>
     <% end %>
   </div>
-
 
   <!-- Files -->
   <div class="card shadow-sm mb-4">
@@ -67,8 +81,11 @@
       <h5 class="mb-0 text-dark">
         <i class="bi bi-file-earmark-text me-2 text-primary"></i>Files
       </h5>
-      <%= link_to new_project_project_file_path(@project, path: @current_path), class: "btn btn-sm btn-outline-primary" do %>
-        <i class="bi bi-file-earmark-plus me-1"></i>Add File
+      <!-- Only show add file button for writers and owners -->
+      <% if current_user == @project.owner || current_user_membership&.can_write? %>
+        <%= link_to new_project_project_file_path(@project, path: @current_path), class: "btn btn-sm btn-outline-primary" do %>
+          <i class="bi bi-file-earmark-plus me-1"></i>Add File
+        <% end %>
       <% end %>
     </div>
 
@@ -92,19 +109,22 @@
                 <% if editable_file?(file_name) %>
                   <%= link_to edit_project_project_file_path(@project, id: file_name, path: @current_path),
                               class: "btn btn-sm btn-outline-secondary",
-                              title: "Edit File",
+                              title: current_user == @project.owner || current_user_membership&.can_write? ? "Edit File" : "View File",
                               onclick: "event.stopPropagation();" do %>
-                    <i class="bi bi-pencil-square"></i>
+                    <i class="bi bi-<%= current_user == @project.owner || current_user_membership&.can_write? ? 'pencil-square' : 'eye' %>"></i>
                   <% end %>
                 <% end %>
 
-                <%= button_to destroy_file_project_project_files_path(@project, file: file_name, path: @current_path),
-                              method: :delete,
-                              data: { confirm: "Are you sure you want to delete '#{file_name}'?" },
-                              class: "btn btn-sm btn-outline-danger",
-                              title: "Delete File",
-                              onclick: "event.stopPropagation();" do %>
-                  <i class="bi bi-trash"></i>
+                <!-- Only show delete button for writers and owners -->
+                <% if current_user == @project.owner || current_user_membership&.can_write? %>
+                  <%= button_to destroy_file_project_project_files_path(@project, file: file_name, path: @current_path),
+                                method: :delete,
+                                data: { confirm: "Are you sure you want to delete '#{file_name}'?" },
+                                class: "btn btn-sm btn-outline-danger",
+                                title: "Delete File",
+                                onclick: "event.stopPropagation();" do %>
+                    <i class="bi bi-trash"></i>
+                  <% end %>
                 <% end %>
               </div>
             </div>
@@ -116,10 +136,139 @@
     </div>
   </div>
 
+  <!-- Commit Modal -->
+  <% if current_user == @project.owner || current_user_membership&.can_write? %>
+    <div class="modal fade" id="commitModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Commit All Changes</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <form id="commitForm">
+              <div class="mb-3">
+                <label for="commitMessage" class="form-label">Commit Message</label>
+                <textarea class="form-control" id="commitMessage" rows="3" required 
+                          placeholder="Describe the changes you made..."></textarea>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="confirmCommit">
+              <i class="bi bi-check2-circle me-1"></i>Commit Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>
 
 <style>
   .folder-row:hover, .file-row:hover {
     background-color: #f8f9fa;
     cursor: pointer;
   }
+  
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+  }
 </style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const commitBtn = document.getElementById('commitBtn');
+  const commitModal = new bootstrap.Modal(document.getElementById('commitModal'));
+  const commitForm = document.getElementById('commitForm');
+  const confirmCommit = document.getElementById('confirmCommit');
+  const commitMessage = document.getElementById('commitMessage');
+  
+  if (commitBtn) {
+    commitBtn.addEventListener('click', function() {
+      commitModal.show();
+    });
+  }
+  
+  if (confirmCommit) {
+    confirmCommit.addEventListener('click', function() {
+      const message = commitMessage.value.trim();
+      
+      if (!message) {
+        alert('Please enter a commit message');
+        return;
+      }
+      
+      // Disable button and show loading state
+      confirmCommit.disabled = true;
+      confirmCommit.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Committing...';
+      
+      // Make AJAX request to commit_all endpoint
+      fetch('<%= commit_all_project_project_files_path(@project) %>', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({
+          message: message
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.status === 'success') {
+          // Show success message
+          const alertDiv = document.createElement('div');
+          alertDiv.className = 'alert alert-success alert-dismissible fade show';
+          alertDiv.innerHTML = `
+            <i class="bi bi-check-circle me-2"></i>
+            Changes committed successfully! 
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+          `;
+          document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
+          
+          // Hide modal
+          commitModal.hide();
+          
+          // Refresh the page to update the UI
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else {
+          throw new Error(data.message || 'Commit failed');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        
+        // Show error message
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-danger alert-dismissible fade show';
+        alertDiv.innerHTML = `
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Error committing changes: ${error.message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
+      })
+      .finally(() => {
+        // Re-enable button
+        confirmCommit.disabled = false;
+        confirmCommit.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Commit Changes';
+      });
+    });
+  }
+  
+  // Clear form when modal is hidden
+  document.getElementById('commitModal').addEventListener('hidden.bs.modal', function() {
+    commitMessage.value = '';
+  });
+});
+</script>

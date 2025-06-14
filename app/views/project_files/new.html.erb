@@ -15,11 +15,6 @@
         </div>
 
         <div class="mb-3">
-          <%= label_tag :language, "🧠 Language", class: "form-label" %>
-          <%= select_tag "file[language]", options_for_select(["rb", "js", "py", "java", "html", "css", "json", "md"]), class: "form-select" %>
-        </div>
-
-        <div class="mb-3">
           <%= label_tag :content, "📝 Initial Content", class: "form-label" %>
           <%= text_area_tag "file[content]", "", rows: 12, class: "form-control", placeholder: "# Start coding here..." %>
         </div>
