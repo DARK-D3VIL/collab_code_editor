@@ -1,0 +1,191 @@
+<div class="editor-container" style="height: 100vh; display: flex; flex-direction: column; background-color: #f8f9fa;">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-white shadow-sm border-bottom sticky-top" style="z-index: 100;">
+    <h5 class="mb-0">
+      👁️ Viewing: <strong><%= @file_name %></strong>
+      <span class="text-muted">(<%= @language.capitalize %>)</span>
+      <span class="badge bg-secondary">Branch: <%= @branch_name %></span>
+      <span class="badge bg-info">Read Only</span>
+    </h5>
+    <div class="d-flex gap-2">
+      <button id="exitBtn" class="btn btn-outline-secondary">🚪 Back to Files</button>
+    </div>
+  </div>
+
+  <!-- Notifications Area -->
+  <div id="notifications" class="notifications-container px-3 pt-2" style="min-height: 0;">
+    <!-- Dynamic notifications will be inserted here -->
+  </div>
+
+  <!-- Editor -->
+  <div class="flex-grow-1">
+    <div id="editor" style="height: 100%;"></div>
+  </div>
+</div>
+
+<%= javascript_importmap_tags %>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+<script type="module">
+  const projectId = <%= @project.id %>;
+  const fileName = "<%= @file_name %>";
+  const initialContent = `<%= raw @file_content %>`;
+  const language = "<%= @language %>";
+  const branchName = "<%= @branch_name %>";
+  const currentPath = "<%= @file_path %>";
+
+  const redirectUrl = `/projects/${projectId}/files?path=${encodeURIComponent(currentPath)}`;
+
+  let editor;
+
+  // Utility function to show notifications
+  function showNotification(message, type = 'info') {
+    const notificationsContainer = document.getElementById('notifications');
+    const alertClass = type === 'error' ? 'alert-danger' : 
+                      type === 'success' ? 'alert-success' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show`;
+    notification.setAttribute('role', 'alert');
+    notification.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    notificationsContainer.appendChild(notification);
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.remove();
+      }
+    }, 5000);
+  }
+
+  require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" } });
+
+  require(["vs/editor/editor.main"], function () {
+    editor = monaco.editor.create(document.getElementById("editor"), {
+      value: initialContent,
+      language: language,
+      automaticLayout: true,
+      theme: "vs",
+      fontSize: 14,
+      minimap: { enabled: true },
+      wordWrap: "on",
+      padding: { top: 10, bottom: 10 },
+      readOnly: true,  // This makes the editor read-only
+      contextmenu: true,
+      selectOnLineNumbers: true,
+      scrollBeyondLastLine: false,
+      renderLineHighlight: "line",
+      cursorBlinking: "solid",
+      showFoldingControls: "always",
+      folding: true,
+      foldingStrategy: "auto",
+      lineNumbers: "on",
+      glyphMargin: true,
+      lineDecorationsWidth: 10,
+      lineNumbersMinChars: 3,
+      renderWhitespace: "selection",
+      renderControlCharacters: false,
+      renderIndentGuides: true,
+      rulers: [],
+      scrollbar: {
+        vertical: 'visible',
+        horizontal: 'visible',
+        useShadows: false,
+        verticalHasArrows: false,
+        horizontalHasArrows: false,
+        verticalScrollbarSize: 17,
+        horizontalScrollbarSize: 17,
+        arrowSize: 30
+      }
+    });
+
+    // Add helpful keyboard shortcuts for read-only mode
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, function() {
+      editor.getAction('actions.find').run();
+    });
+
+    editor.addCommand(monaco.KeyCode.F3, function() {
+      editor.getAction('editor.action.nextMatchFindAction').run();
+    });
+
+    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F3, function() {
+      editor.getAction('editor.action.previousMatchFindAction').run();
+    });
+
+    // Show welcome notification
+    showNotification('File loaded in read-only mode. Use Ctrl+F to search.', 'info');
+
+    // Focus the editor
+    editor.focus();
+  });
+
+  // Exit Button
+  document.getElementById("exitBtn").addEventListener("click", () => {
+    window.location.href = redirectUrl;
+  });
+
+  // Handle keyboard shortcuts for navigation
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      window.location.href = redirectUrl;
+    }
+  });
+</script>
+
+<style>
+  .notifications-container {
+    max-height: 200px;
+    overflow-y: auto;
+  }
+  
+  .notifications-container:empty {
+    display: none;
+  }
+  
+  .alert {
+    margin-bottom: 0.5rem;
+  }
+  
+  .alert:last-child {
+    margin-bottom: 0;
+  }
+
+  /* Read-only editor styling */
+  .monaco-editor .monaco-editor-background {
+    background-color: #f8f9fa !important;
+  }
+
+  .monaco-editor .margin {
+    background-color: #e9ecef !important;
+  }
+
+  /* Highlight that this is read-only */
+  .monaco-editor .current-line {
+    background-color: rgba(0, 123, 255, 0.05) !important;
+    border: none !important;
+  }
+
+  /* Custom scrollbar for better read-only experience */
+  .monaco-scrollable-element > .scrollbar > .slider {
+    background: rgba(0, 0, 0, 0.4) !important;
+  }
+
+  .monaco-scrollable-element > .scrollbar > .slider:hover {
+    background: rgba(0, 0, 0, 0.6) !important;
+  }
+
+  /* Selection styling for read-only */
+  .monaco-editor .selected-text {
+    background-color: rgba(0, 123, 255, 0.3) !important;
+  }
+
+  /* Find widget styling */
+  .monaco-editor .find-widget {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+  }
+</style>

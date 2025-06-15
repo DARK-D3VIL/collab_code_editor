@@ -6,7 +6,7 @@ class ProjectFilesController < ApplicationController
   before_action :authorize_user!
   before_action :set_path_vars, only: [ :index, :create_folder ]
   before_action :authorize_writer!, only: [ :save, :create, :create_folder, :commit, :commit_all, :destroy_file, :destroy_folder, :new ]
-  before_action :switch_to_user_branch, except: [ :destroy_file, :destroy_folder ] # Exclude delete actions
+  before_action :switch_to_user_branch, except: [ :destroy_file, :destroy_folder, :show ] # Exclude delete actions and show
 
   def index
     @project = current_user.projects.find(params[:project_id])
@@ -45,12 +45,42 @@ class ProjectFilesController < ApplicationController
     @file = ProjectFile.new
   end
 
+  def show
+    @project = current_user.projects.find(params[:project_id])
+    @current_path = params[:path].to_s
+    @file_name = params[:id]
+    
+    unless editable_file?(@file_name)
+      redirect_to project_project_files_path(@project, path: @current_path), alert: "This file type is not supported for viewing." and return
+    end
+
+    repo_path = Rails.root.join("storage", "projects", "project_#{@project.id}")
+    full_path = repo_path.join(@current_path, @file_name)
+
+    unless File.exist?(full_path)
+      redirect_to project_project_files_path(@project, path: @current_path), alert: "File not found." and return
+    end
+
+    # For read-only view, we only read the actual file content, not unsaved changes
+    @file_content = File.read(full_path)
+    @branch_name = current_branch_for_project&.name || "main"
+    @language = language_for_extension(@file_name)
+    @file_path = @current_path
+  end
+
   def edit
+    # Check if user has write permissions
+    unless current_user == @project.owner || current_user_membership&.can_write?
+      redirect_to project_project_files_path(@project, path: params[:path].to_s), 
+                  notice: "You have read-only access. Use the view option to see file contents." and return
+    end
+
     cookies.encrypted[:user_id] = current_user.id
     @project = current_user.projects.find(params[:project_id])
     @current_path = params[:path].to_s
     @file_name = params[:id]
     @can_edit = current_user_membership&.can_write? || @project.owner == current_user
+    
     unless editable_file?(@file_name)
       redirect_to project_project_files_path(@project, path: @current_path), alert: "This file type is not supported for editing." and return
     end
@@ -70,8 +100,8 @@ class ProjectFilesController < ApplicationController
     end
 
     @branch_name = current_branch_for_project.name
-
     @language = language_for_extension(@file_name)
+    @file_path = @current_path
   end
 
   def save

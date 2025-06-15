@@ -30,9 +30,15 @@ Rails.application.routes.draw do
 
   get "/github_repos", to: "github#repos"
   post "/github_clone", to: "github#clone", as: :github_clone
+  delete "/github/projects/:project_id/unlink", to: "github#unlink_repository", as: "github_project_unlink"
   resources :projects do
     collection do
       post "join"
+    end
+    scope path: "github", as: "github" do
+      get "sync", to: "github#sync"
+      post "link", to: "github#link_repository", as: "link_repository"
+      post "push", to: "github#push_to_github", as: "push"
     end
     resources :project_members, only: [ :index ] do
       member do

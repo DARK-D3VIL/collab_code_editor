@@ -50,7 +50,7 @@
                   <%= link_to "Files", project_project_files_path(@project, path: ""), class: "nav-link #{controller_name == 'project_files' ? 'fw-semibold text-dark' : 'text-muted'}" %>
                 </li>
                 <li class="nav-item">
-                  <%= link_to "Git", project_git_path(@project), class: "nav-link #{controller_name == 'project_git' ? 'fw-semibold text-dark' : 'text-muted'}" %>
+                  <%= link_to "Version Control", project_git_path(@project), class: "nav-link #{controller_name == 'project_git' ? 'fw-semibold text-dark' : 'text-muted'}" %>
                 </li>
                 <% if current_user == @project.owner %>
                   <li class="nav-item">
@@ -149,7 +149,7 @@
             when :alert  then 'alert-danger'
             else "alert-info"
           end %>
-        <div class="alert <%= alert_class %> alert-dismissible fade show" role="alert">
+        <div class="alert <%= alert_class %> alert-dismissible fade show auto-dismiss" role="alert">
           <%= message %>
           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
@@ -517,6 +517,22 @@
         if (!window.clientSideSearch) {
           window.clientSideSearch = new ClientSideSearch();
         }
+      });
+      document.addEventListener("DOMContentLoaded", function () {
+        const alerts = document.querySelectorAll('.alert.auto-dismiss');
+
+        alerts.forEach(function (alert) {
+          setTimeout(function () {
+            // Fade out
+            alert.classList.remove("show");
+            alert.classList.add("fade");
+
+            // Remove from DOM after fade-out
+            setTimeout(function () {
+              alert.remove();
+            }, 300); // match Bootstrap fade transition duration
+          }, 3000); // show for 3 seconds
+        });
       });
     </script>
 

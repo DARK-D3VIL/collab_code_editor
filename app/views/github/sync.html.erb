@@ -1,0 +1,446 @@
+<!-- app/views/github/sync.html.erb -->
+<div class="container-fluid">
+  <div class="row">
+    <!-- Sidebar Navigation -->
+    <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse border-end">
+      <div class="position-sticky p-4">
+        <h5 class="fw-bold text-primary mb-4">Git Panel</h5>
+        <ul class="nav flex-column">
+          <li class="nav-item mb-2">
+            <%= link_to project_git_path(@project), class: "#{sidebar_link_class('show')} nav-link d-flex align-items-center" do %>
+              <i class="bi bi-clock-history me-2"></i> History
+            <% end %>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_git_branches_path(@project), class: "#{sidebar_link_class('branches')} nav-link d-flex align-items-center" do %>
+              <i class="bi bi-git me-2"></i> Branches
+            <% end %>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: "#{sidebar_link_class('commits')} nav-link d-flex align-items-center" do %>
+              <i class="bi bi-list-ol me-2"></i> Commits
+            <% end %>
+          </li>
+          
+          <!-- GitHub Integration Section -->
+          <li class="nav-item mt-3 mb-1">
+            <hr class="my-2">
+            <small class="text-muted fw-bold">GITHUB</small>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to github_project_sync_path(@project), class: "#{sidebar_link_class('sync')} nav-link d-flex align-items-center position-relative" do %>
+              <i class="bi bi-github me-2"></i> 
+              <span>Sync</span>
+              <% if !github_token_valid? %>
+                <span class="badge bg-warning ms-auto" style="font-size: 0.6rem;">!</span>
+              <% elsif @project&.github_url.blank? %>
+                <span class="badge bg-info ms-auto" style="font-size: 0.6rem;">Link</span>
+              <% else %>
+                <span class="badge bg-success ms-auto" style="font-size: 0.6rem;">✓</span>
+              <% end %>
+            <% end %>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+      <div class="mt-4">
+        <div class="row justify-content-center">
+          <div class="col-md-10">
+            <div class="card shadow-sm">
+              <div class="card-header bg-dark text-white">
+                <h3 class="mb-0">
+                  <i class="fab fa-github me-2"></i>
+                  GitHub Integration
+                </h3>
+                <small class="text-muted">Project: <%= @project.name %> | Current Branch: <%= @current_branch&.name || 'None' %></small>
+              </div>
+              
+              <div class="card-body">
+                <% if !@github_connected %>
+                  <!-- Step 1: Connect to GitHub -->
+                  <div class="text-center py-5">
+                    <div class="mb-4">
+                      <i class="fab fa-github fa-5x text-muted"></i>
+                    </div>
+                    <h4 class="mb-3">Connect to GitHub</h4>
+                    <p class="text-muted mb-4">
+                      Connect your GitHub account to sync your project with GitHub repositories.
+                    </p>
+                    <% if current_user == @project.owner || current_user_membership&.can_write? %>
+                      <%= button_to "🔗 Connect with GitHub", 
+                                    user_github_omniauth_authorize_path, 
+                                    class: "btn btn-dark btn-lg connect-btn",
+                                    data: { 
+                                      confirm: "This will redirect you to GitHub for authentication." 
+                                    } %>
+                    <% else %>
+                      <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        You need write access to connect this project to GitHub.
+                      </div>
+                    <% end %>
+                  </div>
+                  
+                <% elsif @project.github_url.blank? %>
+                  <!-- Step 2: Select GitHub Repository -->
+                  <div class="py-3">
+                    <h4 class="mb-3">
+                      <i class="fas fa-link me-2"></i>
+                      Link GitHub Repository
+                    </h4>
+                    <p class="text-muted mb-4">
+                      Select a GitHub repository to link with your project. This will enable pushing code to GitHub.
+                    </p>
+                    
+                    <% if current_user == @project.owner || current_user_membership&.can_write? %>
+                      <% if @github_repos.present? %>
+                        <%= form_with url: github_project_link_repository_path(@project), method: :post, local: true, id: "link-repo-form" do |form| %>
+                          <div class="mb-3">
+                            <label for="github_url" class="form-label">Select Repository</label>
+                            <select name="github_url" id="github_url" class="form-select" required>
+                              <option value="">Choose a repository...</option>
+                              <% @github_repos.each do |repo| %>
+                                <option value="<%= repo['clone_url'] %>" data-name="<%= repo['name'] %>">
+                                  <%= repo['full_name'] %>
+                                  <% if repo['private'] %>
+                                    (Private)
+                                  <% end %>
+                                </option>
+                              <% end %>
+                            </select>
+                          </div>
+                          
+                          <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary link-btn">
+                              <span class="btn-text">
+                                <i class="fas fa-link me-2"></i>
+                                Link Selected Repository
+                              </span>
+                              <span class="btn-spinner d-none">
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Linking Repository...
+                              </span>
+                            </button>
+                          </div>
+                        <% end %>
+                        
+                        <div class="mt-3 text-center">
+                          <small class="text-muted">
+                            Don't see your repository? 
+                            <a href="https://github.com/new" target="_blank" class="text-decoration-none">
+                              Create a new one on GitHub
+                            </a>
+                          </small>
+                        </div>
+                        
+                      <% else %>
+                        <div class="alert alert-warning">
+                          <i class="fas fa-exclamation-triangle me-2"></i>
+                          No repositories found or failed to load GitHub repositories. 
+                          Please check your GitHub connection.
+                        </div>
+                        
+                        <div class="text-center">
+                          <%= link_to "Retry Connection", 
+                                      github_project_sync_path(@project), 
+                                      class: "btn btn-outline-secondary" %>
+                        </div>
+                      <% end %>
+                    <% else %>
+                      <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        You need write access to link this project to a GitHub repository.
+                      </div>
+                      
+                      <% if @github_repos.present? %>
+                        <div class="mb-3">
+                          <label class="form-label">Available Repositories (Read-Only View)</label>
+                          <select class="form-select" disabled>
+                            <option value="">Choose a repository...</option>
+                            <% @github_repos.each do |repo| %>
+                              <option value="<%= repo['clone_url'] %>">
+                                <%= repo['full_name'] %>
+                                <% if repo['private'] %>
+                                  (Private)
+                                <% end %>
+                              </option>
+                            <% end %>
+                          </select>
+                        </div>
+                      <% end %>
+                    <% end %>
+                  </div>
+                  
+                <% else %>
+                  <!-- Step 3: Push to GitHub -->
+                  <div class="py-3">
+                    <div class="row">
+                      <div class="col-md-8">
+                        <h4 class="mb-3">
+                          <i class="fas fa-cloud-upload-alt me-2"></i>
+                          Push to GitHub
+                        </h4>
+                        
+                        <div class="mb-3">
+                          <strong>Linked Repository:</strong>
+                          <br>
+                          <a href="<%= @project.github_url.gsub('.git', '') %>" 
+                             target="_blank" 
+                             class="text-decoration-none">
+                            <%= @project.github_url.gsub('.git', '').split('/').last(2).join('/') %>
+                            <i class="fas fa-external-link-alt ms-1"></i>
+                          </a>
+                        </div>
+                        
+                        <div class="mb-3">
+                          <strong>Current Branch:</strong>
+                          <span class="badge bg-primary"><%= @current_branch&.name || 'None' %></span>
+                        </div>
+                        
+                        <% if current_user == @project.owner || current_user_membership&.can_write? %>
+                          <% if @current_branch %>
+                            <%= form_with url: github_project_push_path(@project), method: :post, local: true, id: "push-form" do |form| %>
+                              <div class="d-grid gap-2">
+                                <button type="submit" 
+                                        class="btn btn-success btn-lg push-btn"
+                                        data-confirm="Are you sure you want to push the current branch (<%= @current_branch.name %>) to GitHub?">
+                                  <span class="btn-text">
+                                    <i class="fas fa-upload me-2"></i>
+                                    Push "<%= @current_branch.name %>" to GitHub
+                                  </span>
+                                  <span class="btn-spinner d-none">
+                                    <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                    Pushing to GitHub...
+                                  </span>
+                                </button>
+                              </div>
+                            <% end %>
+                          <% else %>
+                            <div class="alert alert-warning">
+                              <i class="fas fa-exclamation-triangle me-2"></i>
+                              No current branch selected. Please select a branch first.
+                            </div>
+                          <% end %>
+                        <% else %>
+                          <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            You need write access to push changes to GitHub.
+                          </div>
+                          
+                          <% if @current_branch %>
+                            <div class="d-grid gap-2">
+                              <button type="button" 
+                                      class="btn btn-success btn-lg" 
+                                      disabled
+                                      title="Write access required">
+                                <i class="fas fa-upload me-2"></i>
+                                Push "<%= @current_branch.name %>" to GitHub
+                              </button>
+                            </div>
+                          <% end %>
+                        <% end %>
+                      </div>
+                      
+                      <div class="col-md-4">
+                        <div class="card bg-light">
+                          <div class="card-body">
+                            <h6 class="card-title">
+                              <i class="fas fa-cog me-2"></i>
+                              Repository Settings
+                            </h6>
+                            
+                            <% if current_user == @project.owner || current_user_membership&.can_write? %>
+                              <div class="mb-2">
+                                <%= button_to "Change Repository", 
+                                            github_project_unlink_path(@project), 
+                                            method: :delete,
+                                            class: "btn btn-outline-secondary btn-sm",
+                                            data: { 
+                                              confirm: "This will unlink the current repository. Are you sure?" 
+                                            } %>
+                              </div>
+                            <% else %>
+                              <div class="mb-2">
+                                <button type="button" 
+                                        class="btn btn-outline-secondary btn-sm" 
+                                        disabled
+                                        title="Write access required">
+                                  Change Repository
+                                </button>
+                              </div>
+                            <% end %>
+                            
+                            <div class="mb-2">
+                              <%= link_to "View on GitHub", 
+                                          @project.github_url.gsub('.git', ''), 
+                                          target: "_blank",
+                                          class: "btn btn-outline-dark btn-sm" %>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+              
+              <div class="card-footer bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                  <small class="text-muted">
+                    <i class="fas fa-info-circle me-1"></i>
+                    <% if @github_connected %>
+                      Connected as GitHub user
+                      <% unless current_user == @project.owner || current_user_membership&.can_write? %>
+                        | Read-only access
+                      <% end %>
+                    <% else %>
+                      Not connected to GitHub
+                    <% end %>
+                  </small>
+                  
+                  <%= link_to "← Back to Project", 
+                              project_project_files_path(@project), 
+                              class: "btn btn-outline-secondary btn-sm" %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<style>
+  .fab.fa-github {
+    color: #333;
+  }
+  
+  .card {
+    border: none;
+    border-radius: 10px;
+  }
+  
+  .card-header {
+    border-radius: 10px 10px 0 0 !important;
+  }
+  
+  .btn-dark {
+    background-color: #24292e;
+    border-color: #24292e;
+  }
+  
+  .btn-dark:hover {
+    background-color: #1e2227;
+    border-color: #1e2227;
+  }
+
+  /* Sidebar Styles */
+  .sidebar {
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #ffffff;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.1);
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 100;
+    padding: 0;
+  }
+
+  .sidebar .nav-link {
+    color: #333;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+  }
+
+  .sidebar .nav-link:hover {
+    background-color: #f1f3f5;
+    border-left-color: #0d6efd;
+  }
+
+  .sidebar .nav-link.active {
+    color: #0d6efd;
+    background-color: #e9f3ff;
+    border-left: 4px solid #0d6efd;
+  }
+
+  /* Button Loading States */
+  .btn-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn:disabled {
+    opacity: 0.8;
+    cursor: not-allowed;
+  }
+
+  /* Mobile responsiveness */
+  @media (max-width: 767.98px) {
+    .sidebar {
+      position: static;
+      height: auto;
+    }
+    
+    main {
+      margin-left: 0 !important;
+    }
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  // Handle Connect to GitHub button
+  const connectBtn = document.querySelector('.connect-btn');
+  if (connectBtn) {
+    connectBtn.addEventListener('click', function(e) {
+      if (confirm(this.dataset.confirm)) {
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Connecting...';
+      }
+    });
+  }
+
+  // Handle Link Repository form
+  const linkForm = document.getElementById('link-repo-form');
+  if (linkForm) {
+    linkForm.addEventListener('submit', function(e) {
+      const submitBtn = this.querySelector('.link-btn');
+      const btnText = submitBtn.querySelector('.btn-text');
+      const btnSpinner = submitBtn.querySelector('.btn-spinner');
+      
+      submitBtn.disabled = true;
+      btnText.classList.add('d-none');
+      btnSpinner.classList.remove('d-none');
+    });
+  }
+
+  // Handle Push to GitHub form
+  const pushForm = document.getElementById('push-form');
+  if (pushForm) {
+    pushForm.addEventListener('submit', function(e) {
+      const submitBtn = this.querySelector('.push-btn');
+      const btnText = submitBtn.querySelector('.btn-text');
+      const btnSpinner = submitBtn.querySelector('.btn-spinner');
+      
+      // Only show spinner if user confirms
+      if (confirm(submitBtn.dataset.confirm)) {
+        submitBtn.disabled = true;
+        btnText.classList.add('d-none');
+        btnSpinner.classList.remove('d-none');
+      } else {
+        e.preventDefault();
+      }
+    });
+  }
+});
+</script>

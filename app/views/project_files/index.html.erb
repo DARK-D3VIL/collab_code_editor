@@ -3,7 +3,7 @@
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
       <h2 class="mb-1 text-dark-emphasis fw-semibold">
-        <i class="bi bi-folder2-open me-2 text-primary"></i>Project Contents
+        <i class="bi bi-folder2-open me-2 text-primary"></i><%= @project.name %>
       </h2>
       <p class="text-muted mb-0">
         Current Branch:
@@ -94,9 +94,14 @@
         <div class="list-group list-group-flush">
           <% @files.each do |file_name| %>
             <% full_path = Rails.root.join("storage", "projects", "project_#{@project.id}", @current_path, file_name) %>
+            <% can_write = current_user == @project.owner || current_user_membership&.can_write? %>
+            <% is_editable = editable_file?(file_name) %>
+            
             <div class="list-group-item d-flex justify-content-between align-items-center file-row"
                 role="button"
-                onclick="window.location='<%= edit_project_project_file_path(@project, id: file_name, path: @current_path) if editable_file?(file_name) %>'">
+                <% if is_editable %>
+                  onclick="window.location='<%= can_write ? edit_project_project_file_path(@project, id: file_name, path: @current_path) : project_project_file_path(@project, id: file_name, path: @current_path) %>'"
+                <% end %>>
               <div>
                 <i class="bi bi-file-earmark-text me-2 text-secondary"></i>
                 <strong><%= file_name %></strong>
@@ -106,17 +111,28 @@
               </div>
 
               <div class="d-flex gap-2">
-                <% if editable_file?(file_name) %>
-                  <%= link_to edit_project_project_file_path(@project, id: file_name, path: @current_path),
-                              class: "btn btn-sm btn-outline-secondary",
-                              title: current_user == @project.owner || current_user_membership&.can_write? ? "Edit File" : "View File",
-                              onclick: "event.stopPropagation();" do %>
-                    <i class="bi bi-<%= current_user == @project.owner || current_user_membership&.can_write? ? 'pencil-square' : 'eye' %>"></i>
+                <% if is_editable %>
+                  <% if can_write %>
+                    <!-- Edit button for writers/owners -->
+                    <%= link_to edit_project_project_file_path(@project, id: file_name, path: @current_path),
+                                class: "btn btn-sm btn-outline-secondary",
+                                title: "Edit File",
+                                onclick: "event.stopPropagation();" do %>
+                      <i class="bi bi-pencil-square"></i>
+                    <% end %>
+                  <% else %>
+                    <!-- View button for readers -->
+                    <%= link_to project_project_file_path(@project, id: file_name, path: @current_path),
+                                class: "btn btn-sm btn-outline-info",
+                                title: "View File (Read Only)",
+                                onclick: "event.stopPropagation();" do %>
+                      <i class="bi bi-eye"></i>
+                    <% end %>
                   <% end %>
                 <% end %>
 
                 <!-- Only show delete button for writers and owners -->
-                <% if current_user == @project.owner || current_user_membership&.can_write? %>
+                <% if can_write %>
                   <%= button_to destroy_file_project_project_files_path(@project, file: file_name, path: @current_path),
                                 method: :delete,
                                 data: { confirm: "Are you sure you want to delete '#{file_name}'?" },

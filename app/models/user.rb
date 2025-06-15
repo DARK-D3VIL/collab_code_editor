@@ -60,4 +60,17 @@ class User < ApplicationRecord
         active: true
       ).distinct
   end
+  def github_token_valid?
+    return false unless github_token.present?
+
+    begin
+      response = Faraday.get("https://api.github.com/user", {}, {
+        Authorization: "token #{github_token}",
+        Accept: "application/vnd.github+json"
+      })
+      response.success?
+    rescue
+      false
+    end
+  end
 end
