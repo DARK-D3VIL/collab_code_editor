@@ -29,4 +29,13 @@ module ProjectGitHelper
       content_tag(:span, line, class: "line #{css_class}")
     end.join.html_safe
   end
+
+  def safe_encode_diff(diff_content)
+    return "" if diff_content.nil?
+    diff_content.to_s.encode("UTF-8",
+      invalid: :replace,
+      undef: :replace,
+      replace: "�"
+    )
+  end
 end

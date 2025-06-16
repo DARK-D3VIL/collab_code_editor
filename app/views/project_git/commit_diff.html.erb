@@ -21,7 +21,23 @@
 
       <div class="card shadow-sm">
         <div class="card-body p-0">
-          <pre class="diff-viewer m-0"><%= raw format_diff(@diff) %></pre>
+          <% if @diff.present? %>
+            <% begin %>
+              <pre class="diff-viewer m-0"><%= raw format_diff(safe_encode_diff(@diff)) %></pre>
+            <% rescue Encoding::CompatibilityError, Encoding::UndefinedConversionError => e %>
+              <div class="alert alert-warning m-3">
+                <h5><i class="bi bi-exclamation-triangle"></i> Encoding Issue</h5>
+                <p>This diff contains binary data or incompatible character encodings and cannot be displayed as text.</p>
+                <p><strong>Error:</strong> <%= e.message %></p>
+                <p>The commit may contain binary files or files with mixed encodings.</p>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="alert alert-info m-3">
+              <h5><i class="bi bi-info-circle"></i> No Diff Available</h5>
+              <p>No diff data available for this commit.</p>
+            </div>
+          <% end %>
         </div>
       </div>
     </main>

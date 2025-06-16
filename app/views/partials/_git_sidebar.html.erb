@@ -45,14 +45,7 @@
                 <% end %>
               </li>
               <li class="nav-item mb-1">
-                <% 
-                  # Check if we're on the sync page by URL path or controller/action
-                  is_sync_active = request.path.include?('/sync') || 
-                                   (controller_name == 'github' && action_name == 'sync') ||
-                                   sidebar_link_class('sync').include?('active')
-                  sync_classes = is_sync_active ? 'nav-link d-flex align-items-center position-relative py-2 small active bg-light fw-semibold text-dark' : 'nav-link d-flex align-items-center position-relative py-2 small text-muted'
-                %>
-                <%= link_to github_project_sync_path(@project), class: sync_classes do %>
+                <%= link_to github_project_sync_path(@project), class: "#{sidebar_link_class('sync')} nav-link d-flex align-items-center py-2 small" do %>
                   <i class="bi bi-github me-2 text-muted" style="font-size: 0.9rem;"></i> 
                   <span>Sync</span>
                   <% if !github_token_valid? %>

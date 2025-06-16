@@ -57,7 +57,7 @@ module ProjectFilesHelper
       mp4 mkv avi mov wmv flv
       mp3 wav ogg flac
       ppt pptx xls xlsx doc docx
-      iso dmg
+      iso dmg h5
     ]
 
     ext = File.extname(file_name).delete(".").downcase
