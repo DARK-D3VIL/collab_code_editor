@@ -20,11 +20,12 @@ class EditorChannel < ApplicationCable::Channel
       type: "initial_state",
       content: initial_content,
       users: get_active_users,
-      user_id: @user.id
+      user_id: @user.id,
+      recent_messages: get_recent_messages
     })
 
-    # Broadcast user joined
-    broadcast_to_others({
+    # Broadcast user joined (with smart notification throttling)
+    broadcast_user_activity("user_joined", {
       type: "user_joined",
       user: user_info(@user)
     })
@@ -34,7 +35,7 @@ class EditorChannel < ApplicationCable::Channel
     remove_user_from_session
 
     # Broadcast user left
-    ActionCable.server.broadcast(@room_id, {
+    broadcast_user_activity("user_left", {
       type: "user_left",
       user_id: @user.id
     })
@@ -42,6 +43,9 @@ class EditorChannel < ApplicationCable::Channel
 
   def content_update(data)
     Rails.logger.info "Content update from user #{@user.id}: #{data['changes']&.keys}"
+
+    # Smart throttling for content updates
+    return if should_throttle_content_update?
 
     # Store the change with timestamp
     store_user_change(data["changes"])
@@ -94,7 +98,7 @@ class EditorChannel < ApplicationCable::Channel
         end
       end
 
-      # Notify the current user that their changes caused conflicts
+      # Notify the current user that their changes caused conflicts (throttled)
       transmit({
         type: "conflict_created",
         conflicts: conflicts.map { |c| c.merge(lines: c[:lines]) },
@@ -105,25 +109,21 @@ class EditorChannel < ApplicationCable::Channel
     # Update content in Redis
     update_file_content(data["content"])
 
-    # Broadcast to all except sender
-    broadcast_to_others({
-      type: "content_update",
-      content: data["content"],
-      changes: data["changes"],
-      user_id: @user.id,
-      timestamp: Time.current.to_i
-    })
+    # Broadcast to all except sender (with smart throttling)
+    broadcast_content_update(data)
   end
 
   def cursor_update(data)
-    # Update cursor position in Redis
+    # Update cursor position in Redis (with throttling)
+    return if should_throttle_cursor_update?
+
     redis.setex(
       "cursor:#{@room_id}:#{@user.id}",
       60, # 1 minute expiry
       { line: data["line"], column: data["column"], timestamp: Time.current.to_i }.to_json
     )
 
-    # Broadcast to others
+    # Broadcast to others (throttled)
     broadcast_to_others({
       type: "cursor_update",
       user_id: @user.id,
@@ -146,7 +146,7 @@ class EditorChannel < ApplicationCable::Channel
       }.to_json
     )
 
-    # Broadcast selection to others
+    # Broadcast selection to others (no notification)
     broadcast_to_others({
       type: "selection_update",
       user_id: @user.id,
@@ -157,6 +157,49 @@ class EditorChannel < ApplicationCable::Channel
     })
   end
 
+  # NEW: Send message functionality
+  def send_message(data)
+    message_text = data["message"]&.strip
+    return if message_text.blank? || message_text.length > 500
+
+    # Store message in Redis for recent messages
+    message_data = {
+      id: SecureRandom.uuid,
+      user_id: @user.id,
+      user_name: user_info(@user)[:name],
+      message: message_text,
+      timestamp: Time.current.to_i
+    }
+
+    store_message(message_data)
+
+    # Broadcast message to all users in the room
+    ActionCable.server.broadcast(@room_id, {
+      type: "message_received",
+      **message_data
+    })
+
+    Rails.logger.info "Message sent by user #{@user.id}: #{message_text[0..50]}"
+  end
+
+  # NEW: Typing indicator
+  def typing_indicator(data)
+    is_typing = data["is_typing"]
+
+    if is_typing
+      redis.setex("typing:#{@room_id}:#{@user.id}", 3, Time.current.to_i)
+    else
+      redis.del("typing:#{@room_id}:#{@user.id}")
+    end
+
+    # Broadcast typing status to others
+    broadcast_to_others({
+      type: "typing_indicator",
+      user_id: @user.id,
+      is_typing: is_typing
+    })
+  end
+
   def request_fresh_state(data)
     # Send fresh content when requested
     fresh_content = get_file_content_with_fallback
@@ -164,7 +207,8 @@ class EditorChannel < ApplicationCable::Channel
     transmit({
       type: "fresh_state",
       content: fresh_content,
-      users: get_active_users
+      users: get_active_users,
+      recent_messages: get_recent_messages
     })
   end
 
@@ -178,13 +222,12 @@ class EditorChannel < ApplicationCable::Channel
     })
   end
 
-  # New method to handle conflict resolution from client
+  # Enhanced conflict resolution
   def resolve_conflict(data)
     conflict_id = data["conflict_id"]
     action = data["resolution_action"] || data["action"]
 
     Rails.logger.info "Resolving conflict #{conflict_id} with action '#{action}' for user #{@user.id}"
-    Rails.logger.info "Received data: #{data.inspect}"
 
     if action.blank?
       Rails.logger.error "No action provided in resolve_conflict"
@@ -210,7 +253,6 @@ class EditorChannel < ApplicationCable::Channel
 
     begin
       conflict = ConflictQueue.find(conflict_id)
-      Rails.logger.info "Found conflict: #{conflict.inspect}"
 
       # Verify the conflict belongs to the current user
       unless conflict.user_id == @user.id
@@ -228,11 +270,9 @@ class EditorChannel < ApplicationCable::Channel
       when "accept"
         # Mark conflict as resolved
         conflict.update!(resolved_at: Time.current) if conflict.respond_to?(:resolve!)
-        Rails.logger.info "Marked conflict #{conflict_id} as resolved"
 
         # Get fresh content and send to user
         fresh_content = get_file_content_with_fallback
-        Rails.logger.info "Sending fresh content (#{fresh_content&.length || 0} chars) to user #{@user.id}"
 
         transmit({
           type: "conflict_resolution",
@@ -250,7 +290,6 @@ class EditorChannel < ApplicationCable::Channel
         if pre_conflict_content.present?
           # Update the shared content with pre-conflict version
           update_file_content(pre_conflict_content)
-          Rails.logger.info "Restored content to pre-conflict state for user #{@user.id}"
 
           # Broadcast the pre-conflict content to all users
           broadcast_to_others({
@@ -276,7 +315,6 @@ class EditorChannel < ApplicationCable::Channel
           user_content = data["user_content"]
           if user_content.present?
             update_file_content(user_content)
-            Rails.logger.info "No pre-conflict content found, using provided user content"
 
             broadcast_to_others({
               type: "content_update",
@@ -294,7 +332,6 @@ class EditorChannel < ApplicationCable::Channel
               message: "Conflict ignored - your changes preserved"
             })
           else
-            Rails.logger.warn "No pre-conflict content or user content available"
             transmit({
               type: "conflict_resolution",
               action: "ignored",
@@ -306,7 +343,6 @@ class EditorChannel < ApplicationCable::Channel
 
         # Remove the conflict
         conflict.destroy
-        Rails.logger.info "Destroyed conflict #{conflict_id}"
 
       else
         Rails.logger.error "Unknown action '#{action}' for conflict resolution"
@@ -328,7 +364,6 @@ class EditorChannel < ApplicationCable::Channel
       })
     rescue => e
       Rails.logger.error "Error resolving conflict #{conflict_id}: #{e.message}"
-      Rails.logger.error e.backtrace.join("\n")
       transmit({
         type: "conflict_resolution",
         action: "error",
@@ -345,6 +380,7 @@ class EditorChannel < ApplicationCable::Channel
       r.sadd("users:#{@room_id}", @user.id)
       r.setex("user_info:#{@room_id}:#{@user.id}", 300, user_info(@user).to_json)
       r.setex("user_joined:#{@room_id}:#{@user.id}", 300, Time.current.to_i)
+      r.setex("user_last_activity:#{@room_id}:#{@user.id}", 300, Time.current.to_i)
     end
 
     # Also subscribe to personal channel for targeted notifications
@@ -359,7 +395,9 @@ class EditorChannel < ApplicationCable::Channel
       r.del("changes:#{@room_id}:#{@user.id}")
       r.del("selection:#{@room_id}:#{@user.id}")
       r.del("user_joined:#{@room_id}:#{@user.id}")
+      r.del("user_last_activity:#{@room_id}:#{@user.id}")
       r.del("pre_conflict:#{@room_id}:#{@user.id}")
+      r.del("typing:#{@room_id}:#{@user.id}")
     end
   end
 
@@ -370,10 +408,12 @@ class EditorChannel < ApplicationCable::Channel
     user_ids.each do |user_id|
       info = redis.get("user_info:#{@room_id}:#{user_id}")
       cursor = redis.get("cursor:#{@room_id}:#{user_id}")
+      is_typing = redis.exists("typing:#{@room_id}:#{user_id}")
 
       if info
         user_data = JSON.parse(info)
         user_data["cursor"] = cursor ? JSON.parse(cursor) : nil
+        user_data["is_typing"] = is_typing == 1
         users << user_data
       end
     end
@@ -381,6 +421,80 @@ class EditorChannel < ApplicationCable::Channel
     users
   end
 
+  # NEW: Message storage and retrieval
+  def store_message(message_data)
+    # Store in Redis list (keep last 50 messages)
+    messages_key = "messages:#{@room_id}"
+    redis.lpush(messages_key, message_data.to_json)
+    redis.ltrim(messages_key, 0, 49) # Keep only last 50 messages
+    redis.expire(messages_key, 24.hours.to_i) # Expire after 24 hours
+  end
+
+  def get_recent_messages(limit = 20)
+    messages_key = "messages:#{@room_id}"
+    messages = redis.lrange(messages_key, 0, limit - 1)
+
+    messages.map do |message_json|
+      JSON.parse(message_json)
+    end.reverse # Reverse to get chronological order
+  rescue JSON::ParserError => e
+    Rails.logger.error "Failed to parse message: #{e.message}"
+    []
+  end
+
+  # Smart throttling methods
+  def should_throttle_content_update?
+    now = Time.current.to_i
+    last_update = redis.get("last_content_update:#{@room_id}:#{@user.id}")
+
+    if last_update && (now - last_update.to_i) < 1 # 1 second throttle
+      return true
+    end
+
+    redis.setex("last_content_update:#{@room_id}:#{@user.id}", 60, now)
+    false
+  end
+
+  def should_throttle_cursor_update?
+    now = Time.current.to_i
+    last_update = redis.get("last_cursor_update:#{@room_id}:#{@user.id}")
+
+    if last_update && (now - last_update.to_i) < 0.5 # 500ms throttle
+      return true
+    end
+
+    redis.setex("last_cursor_update:#{@room_id}:#{@user.id}", 10, now)
+    false
+  end
+
+  def broadcast_content_update(data)
+    # Only broadcast if there are actual users who need the update
+    user_count = redis.scard("users:#{@room_id}")
+    return if user_count <= 1
+
+    broadcast_to_others({
+      type: "content_update",
+      content: data["content"],
+      changes: data["changes"],
+      user_id: @user.id,
+      timestamp: Time.current.to_i
+    })
+  end
+
+  def broadcast_user_activity(activity_type, data)
+    # Throttle user join/leave notifications
+    now = Time.current.to_i
+    last_activity = redis.get("last_#{activity_type}:#{@room_id}:#{@user.id}")
+
+    if last_activity && (now - last_activity.to_i) < 5 # 5 second throttle
+      return
+    end
+
+    redis.setex("last_#{activity_type}:#{@room_id}:#{@user.id}", 60, now)
+    ActionCable.server.broadcast(@room_id, data)
+  end
+
+  # Rest of your existing methods remain the same...
   def get_file_content
     redis.get("content:#{@room_id}")
   end
@@ -482,7 +596,6 @@ class EditorChannel < ApplicationCable::Channel
     }
 
     redis.setex(key, 60, change_data.to_json) # 60 seconds expiry
-    Rails.logger.info "Stored changes for user #{@user.id}: #{changes}"
   end
 
   def detect_conflicts(changes)
@@ -490,11 +603,9 @@ class EditorChannel < ApplicationCable::Channel
     return conflicts unless changes && changes["lines"]
 
     current_user_lines = changes["lines"]
-    Rails.logger.info "Checking conflicts for lines: #{current_user_lines}"
 
     # Get other users' recent changes
     user_ids = redis.smembers("users:#{@room_id}").map(&:to_i) - [ @user.id ]
-    Rails.logger.info "Checking against users: #{user_ids}"
 
     user_ids.each do |other_user_id|
       other_changes_raw = redis.get("changes:#{@room_id}:#{other_user_id}")
@@ -508,15 +619,11 @@ class EditorChannel < ApplicationCable::Channel
         # Only consider recent changes (within last 60 seconds)
         next if Time.current.to_i - other_timestamp > 60
 
-        Rails.logger.info "Comparing with user #{other_user_id} changes: #{other_changes}"
-
         # Check for line overlaps
         if other_changes && other_changes["lines"]
           overlapping_lines = current_user_lines & other_changes["lines"]
 
           if overlapping_lines.any?
-            Rails.logger.info "Found overlap on lines #{overlapping_lines} between users #{@user.id} and #{other_user_id}"
-
             conflicts << {
               user_id: other_user_id,
               lines: overlapping_lines,
@@ -533,8 +640,6 @@ class EditorChannel < ApplicationCable::Channel
           selection_overlap = current_user_lines & selection_lines
 
           if selection_overlap.any? && Time.current.to_i - selection_data["timestamp"] < 30
-            Rails.logger.info "Found selection conflict on lines #{selection_overlap} with user #{other_user_id}"
-
             conflicts << {
               user_id: other_user_id,
               lines: selection_overlap,

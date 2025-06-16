@@ -1,42 +1,176 @@
+<%# app/views/project_files/edit.html.erb %>
+
 <div class="editor-page-wrapper">
-  <!-- Editor container that will be positioned absolutely -->
-  <div id="editorContainer">
-    <!-- Header -->
+  <!-- Chat Toggle Button (moved to bottom right) -->
+  <button id="chatToggleBtn" class="btn btn-primary chat-toggle-btn-bottom" onclick="toggleChatSidebar()">
+    <i class="bi bi-chat-dots"></i>
+    <span class="badge bg-danger chat-notification-badge" id="chatNotificationBadge" style="display: none;">0</span>
+  </button>
+
+  <!-- Editor Container -->
+  <div id="editorContainer" class="editor-container">
+    <!-- Editor Header -->
     <div class="editor-header">
       <div class="editor-info">
         <span class="file-name">
-          <i class="fas fa-file-code me-2"></i>
-          <%= @file_name %>
+          <i class="bi bi-file-earmark-code me-2 text-primary"></i>
+          <span id="fileName"><%= @file_name %></span>
         </span>
         <span class="branch-badge">
-          <i class="fas fa-code-branch me-1"></i>
-          <%= @branch_name %>
+          <i class="bi bi-git me-1"></i>
+          <span id="branchName"><%= @branch_name %></span>
+        </span>
+        <span class="connection-status" id="connectionStatus">
+          <i class="bi bi-circle-fill text-warning me-1"></i>
+          <small class="text-muted">Connecting...</small>
         </span>
       </div>
       
       <div class="editor-actions">
-        <div id="activeUsers"></div>
+        <!-- Active Users -->
+        <div class="active-users">
+          <small class="text-muted me-2">Online:</small>
+          <div id="activeUsers" class="users-list"></div>
+        </div>
         
-        <button id="saveBtn" class="btn btn-success btn-sm btn-action" <%= 'disabled' unless @can_edit %>>
-          <i class="fas fa-save"></i>
-          <span>Save</span>
-        </button>
-        
-        <button id="commitBtn" class="btn btn-primary btn-sm btn-action" <%= 'disabled' unless @can_edit %>>
-          <i class="fas fa-check"></i>
-          <span>Commit</span>
-        </button>
-        
-        <%= link_to project_project_files_path(@project, path: @current_path), class: "btn btn-outline-light btn-sm btn-action" do %>
-          <i class="fas fa-times"></i>
-          <span>Exit</span>
-        <% end %>
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          <button id="saveBtn" class="btn btn-success btn-sm" <%= @can_edit ? '' : 'disabled' %>>
+            <i class="bi bi-save me-1"></i>
+            <span>Save</span>
+          </button>
+          
+          <button id="commitBtn" class="btn btn-primary btn-sm" <%= @can_edit ? '' : 'disabled' %>>
+            <i class="bi bi-check-circle me-1"></i>
+            <span>Commit</span>
+          </button>
+          
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+              <i class="bi bi-three-dots"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="#" onclick="downloadFile()">
+                <i class="bi bi-download me-2"></i>Download
+              </a></li>
+              <li><a class="dropdown-item" href="#" onclick="refreshEditor()">
+                <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="<%= project_project_files_path(@project, path: @current_path) %>">
+                <i class="bi bi-box-arrow-left me-2"></i>Back to Files
+              </a></li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
     
-    <!-- Main Editor -->
+    <!-- Monaco Editor -->
     <div class="editor-main">
       <div id="monaco-editor"></div>
+    </div>
+
+    <!-- Editor Status Bar -->
+    <div class="editor-status-bar">
+      <div class="status-left">
+        <span class="status-item" id="editorMode">
+          <i class="bi bi-<%= @can_edit ? 'pencil' : 'eye' %> me-1"></i>
+          <%= @can_edit ? 'Edit Mode' : 'Read Only' %>
+        </span>
+        <span class="status-item" id="cursorPosition">
+          Line 1, Col 1
+        </span>
+        <span class="status-item" id="selectionInfo" style="display: none;">
+          Selected: 0 chars
+        </span>
+      </div>
+      
+      <div class="status-right">
+        <span class="status-item" id="languageMode">
+          <i class="bi bi-code-slash me-1"></i>
+          <%= @language.capitalize %>
+        </span>
+        <span class="status-item" id="lastSaved">
+          <%= File.exist?("#{Rails.root.join('storage', 'projects', "project_#{@project.id}", @current_path, @file_name)}.unsaved") ? 'Unsaved changes' : 'Saved' %>
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Sidebar -->
+  <div id="chatSidebar" class="chat-sidebar">
+    <!-- Chat Header -->
+    <div class="chat-header">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h6 class="mb-0 fw-bold">
+            <i class="bi bi-chat-dots me-2 text-primary"></i>
+            Team Chat
+          </h6>
+          <small class="text-muted">
+            <span id="onlineCount">0</span> collaborators online
+          </small>
+        </div>
+        
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-secondary" onclick="clearChatHistory()" title="Clear chat">
+            <i class="bi bi-trash3"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="toggleChatSidebar()" title="Close chat">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Online Users List -->
+    <div class="chat-users">
+      <div class="chat-users-header">
+        <small class="text-muted fw-semibold">ONLINE NOW</small>
+      </div>
+      <div id="chatUsersList" class="chat-users-list">
+        <!-- Users will be populated here -->
+      </div>
+    </div>
+    
+    <!-- Chat Messages -->
+    <div class="chat-messages" id="chatMessages">
+      <div class="welcome-message">
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-chat-heart fs-3 mb-2 d-block"></i>
+          <p class="mb-0">Welcome to team chat!</p>
+          <small>Start collaborating with your team members</small>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Typing Indicator -->
+    <div class="typing-indicator" id="typingIndicator"></div>
+    
+    <!-- Chat Input -->
+    <div class="chat-input">
+      <div class="input-group">
+        <input type="text" 
+               id="messageInput" 
+               class="form-control" 
+               placeholder="Type a message..." 
+               maxlength="500"
+               autocomplete="off">
+        <button class="btn btn-primary" 
+                onclick="sendMessage()" 
+                title="Send message (Enter)">
+          <i class="bi bi-send"></i>
+        </button>
+      </div>
+      
+      <div class="chat-options mt-2">
+        <div class="d-flex justify-content-end align-items-center">
+          <small class="text-muted">
+            <span id="messageLength">0</span>/500
+          </small>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -44,15 +178,15 @@
   <div id="notifications" class="notifications-container"></div>
 
   <!-- Conflict Modal -->
-  <div class="modal fade" id="conflictModal" tabindex="-1">
+  <div class="modal fade" id="conflictModal" tabindex="-1" data-bs-backdrop="false" data-bs-keyboard="false">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
-            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
-            Conflict Detected
+            <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+            Edit Conflict Detected
           </h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          <button type="button" class="btn-close" onclick="closeConflictModal()"></button>
         </div>
         <div class="modal-body" id="conflictModalBody">
           <!-- Content will be inserted dynamically -->
@@ -62,53 +196,42 @@
   </div>
 </div>
 
-<!-- Script to override main container styling -->
-<script>
-  document.addEventListener('DOMContentLoaded', function() {
-    const editorWrapper = document.querySelector('.editor-page-wrapper');
-    if (editorWrapper) {
-      const parentContainer = editorWrapper.closest('.container, .container-fluid');
-      if (parentContainer) {
-        parentContainer.style.maxWidth = '100%';
-        parentContainer.style.padding = '0';
-        parentContainer.style.margin = '0';
-        parentContainer.style.height = 'auto';
-        parentContainer.style.overflow = 'visible';
-      }
-    }
-  });
-</script>
-
-<!-- Monaco Editor -->
+<!-- Monaco Editor Script -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 
-<!-- ActionCable and Editor -->
+<!-- Rails Configuration Script -->
+<script>
+  // Configure the editor with Rails data
+  window.editorConfig = {
+    projectId: <%= @project.id %>,
+    fileId: '<%= File.join(@current_path.to_s, @file_name).gsub(/^\//, '') %>',
+    fileName: '<%= @file_name %>',
+    branch: '<%= @branch_name %>',
+    language: '<%= @language %>',
+    initialContent: <%= @file_content.to_json.html_safe %>,
+    userId: <%= current_user.id %>,
+    userName: '<%= current_user.username.presence || current_user.email %>',
+    canEdit: <%= @can_edit ? 'true' : 'false' %>,
+    savePath: '<%= save_project_project_file_path(@project, @file_name, path: @current_path) %>',
+    commitPath: '<%= commit_project_project_file_path(@project, @file_name, path: @current_path) %>',
+    currentPath: '<%= @current_path %>',
+    projectPath: '<%= project_project_files_path(@project, path: @current_path) %>'
+  };
+  
+  // Debug the save path
+  console.log('Save path configured as:', window.editorConfig.savePath);
+  console.log('Can edit:', window.editorConfig.canEdit);
+</script>
+
+<!-- Enhanced Editor JavaScript from your artifact -->
 <script type="module">
   import { createConsumer } from 'https://ga.jspm.io/npm:@rails/actioncable@8.0.200/app/assets/javascripts/actioncable.esm.js';
   
   window.ActionCable = { createConsumer };
+  
   initializeEditor();
   
   function initializeEditor() {
-    window.editorConfig = {
-      projectId: <%= @project.id %>,
-      fileId: '<%= File.join(@current_path.to_s, @file_name).gsub(/^\//, '') %>',
-      fileName: '<%= @file_name %>',
-      branch: '<%= @branch_name %>',
-      language: '<%= @language %>',
-      initialContent: <%= (@file_content || '').to_json.html_safe %>,
-      userId: <%= current_user.id %>,
-      userName: '<%= current_user.username || current_user.email %>',
-      canEdit: <%= @can_edit ? 'true' : 'false' %>,
-      savePath: '<%= save_project_project_file_path(@project, @file_name, path: @current_path) %>',
-      commitPath: '<%= commit_project_project_file_path(@project, @file_name, path: @current_path) %>'
-    };
-    
-    console.log('Editor config:', window.editorConfig);
-    
-    window.monacoInitialized = false;
-    window.editorInitialized = false;
-    
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', loadMonaco);
     } else {
@@ -117,318 +240,138 @@
   }
   
   function loadMonaco() {
-    if (window.monacoInitialized) {
-      console.log('Monaco already initialized, skipping...');
-      return;
-    }
+    require.config({ 
+      paths: { 
+        vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' 
+      }
+    });
     
-    adjustEditorSize();
-    window.addEventListener('resize', adjustEditorSize);
-    
-    if (typeof require !== 'undefined') {
-      require.config({ 
-        paths: { 
-          vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' 
-        }
-      });
-      
-      require(['vs/editor/editor.main'], function() {
-        console.log('Monaco loaded, initializing collaborative editor...');
-        window.monacoInitialized = true;
-        
-        setTimeout(() => {
-          initializeCollaborativeEditor();
-        }, 100);
-      });
-    } else {
-      console.error('RequireJS not available');
-      setTimeout(initBasicEditor, 1000);
-    }
+    require(['vs/editor/editor.main'], function() {
+      window.collaborativeEditor = new CollaborativeEditor(window.editorConfig);
+      setupGlobalHandlers();
+    });
   }
   
-  function initializeCollaborativeEditor() {
-    if (window.editorInitialized) {
-      console.log('Editor already initialized');
-      return;
-    }
+  function setupGlobalHandlers() {
+    // Message input handlers
+    const messageInput = document.getElementById('messageInput');
+    const messageLength = document.getElementById('messageLength');
     
-    try {
-      window.App = window.App || {};
-      window.App.cable = window.ActionCable.createConsumer();
-      
-      window.collaborativeEditor = new CollaborativeEditor({
-        ...window.editorConfig,
-        editorElementId: 'monaco-editor',
-        notificationsElementId: 'notifications'
-      });
-      
-      window.editorInitialized = true;
-      console.log('Collaborative editor initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize collaborative editor:', error);
-      initBasicEditor();
-    }
-  }
-  
-  function adjustEditorSize() {
-    const navbarHeight = 56;
-    const editorContainer = document.getElementById('editorContainer');
+    messageInput.addEventListener('input', function() {
+      messageLength.textContent = this.value.length;
+      window.collaborativeEditor.handleTyping();
+    });
     
-    if (editorContainer) {
-      editorContainer.style.top = navbarHeight + 'px';
-      editorContainer.style.height = `calc(100vh - ${navbarHeight}px)`;
-    }
-  }
-  
-  function initBasicEditor() {
-    if (window.editorInitialized) return;
+    messageInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
     
-    console.log('Initializing basic Monaco editor as fallback...');
-    
-    const editorElement = document.getElementById('monaco-editor');
-    if (!editorElement) {
-      console.error('Editor element not found!');
-      return;
-    }
-    
-    try {
-      const editor = window.monaco.editor.create(editorElement, {
-        value: window.editorConfig.initialContent,
-        language: window.editorConfig.language,
-        theme: 'vs-dark',
-        automaticLayout: true,
-        readOnly: window.editorConfig.canEdit !== 'true'
-      });
-      
-      window.editorInitialized = true;
-      
-      const saveBtn = document.getElementById('saveBtn');
-      if (saveBtn) {
-        saveBtn.addEventListener('click', function() {
-          if (window.editorConfig.canEdit !== 'true') return;
-          
-          const btn = this;
-          btn.disabled = true;
-          btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
-          
-          fetch(window.editorConfig.savePath, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
-            },
-            body: new URLSearchParams({
-              content: editor.getValue()
-            })
-          }).then(response => {
-            if (response.ok) {
-              showEditorNotification('File saved', 'success');
-            } else {
-              showEditorNotification('Failed to save file', 'error');
-            }
-          }).catch(error => {
-            showEditorNotification('Error saving file', 'error');
-          }).finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-save me-2"></i>Save';
-          });
-        });
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        document.getElementById('saveBtn')?.click();
       }
       
-      console.log('Basic editor initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize basic editor:', error);
-    }
-  }
-  
-  function showEditorNotification(message, type) {
-    const container = document.getElementById('notifications');
-    if (!container) {
-      console.warn('Notifications container not found');
-      return;
-    }
-    
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
-    alert.innerHTML = `
-      ${message}
-      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    container.appendChild(alert);
-    setTimeout(() => {
-      if (alert.parentNode) {
-        alert.remove();
+      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+        e.preventDefault();
+        toggleChatSidebar();
       }
-    }, 3000);
+    });
   }
 
   class CollaborativeEditor {
     constructor(config) {
       this.config = config;
-      this.config.fileId = this.config.fileId.replace(/^\//, '');
-      
       this.editor = null;
       this.channel = null;
       this.users = new Map();
-      this.decorations = new Map();
+      this.messages = [];
+      this.unreadMessages = 0;
+      this.isChatOpen = false;
+      this.hasUnsavedChanges = false;
+      this.isTyping = false;
+      this.typingTimeout = null;
       this.isRemoteUpdate = false;
-      this.lastContent = '';
-      this.cursors = new Map();
-      this.lastChangeTime = 0;
-      this.currentConflictId = null;
-      this.conflictTimeouts = new Map(); // Track conflict timeouts
-      this.recentChanges = new Map(); // Track recent changes by line
+      
+      // Notification throttling
+      this.lastNotificationTime = new Map();
+      this.notificationCounts = new Map();
       
       this.initialize();
     }
 
     async initialize() {
-      console.log('Initializing CollaborativeEditor...');
       this.createEditor();
       this.setupChannel();
       this.setupUIHandlers();
-      this.setupConflictDetection();
+      this.updateUI();
     }
-    
-    setupConflictDetection() {
-      // Clear old change tracking every 10 seconds
-      setInterval(() => {
-        const now = Date.now();
-        for (const [line, timestamp] of this.recentChanges.entries()) {
-          if (now - timestamp > 10000) { // 10 seconds
-            this.recentChanges.delete(line);
-          }
-        }
-      }, 5000);
-    }
-    
-    createEditor() {
-      console.log('Creating Monaco editor...');
-      
-      const elementId = this.config.editorElementId || 'monaco-editor';
-      const editorElement = document.getElementById(elementId);
-      
-      if (!editorElement) {
-        console.error(`Editor element with ID '${elementId}' not found!`);
-        return;
-      }
-      
-      if (typeof monaco === 'undefined') {
-        console.error('Monaco editor not loaded yet');
-        throw new Error('Monaco editor not available');
-      }
-      
-      try {
-        const initialContent = this.config.initialContent || '';
-        console.log('Creating editor with initial content length:', initialContent.length);
-        
-        this.editor = monaco.editor.create(editorElement, {
-          value: initialContent,
-          language: this.config.language || 'javascript',
-          theme: 'vs-dark',
-          automaticLayout: true,
-          fontSize: 14,
-          minimap: { enabled: true },
-          wordWrap: 'on',
-          readOnly: this.config.canEdit === 'false' || this.config.canEdit === false
-        });
 
-        this.lastContent = initialContent;
-        this.setupEditorHandlers();
-        
-        console.log('Editor created successfully');
-        
-        if (!this.config.canEdit || this.config.canEdit === 'false') {
-          this.editor.updateOptions({ readOnly: true });
-          this.showNotification('Read-only mode - you don\'t have write permission', 'info');
-        }
-      } catch (error) {
-        console.error('Failed to create Monaco editor:', error);
-        throw error;
-      }
+    createEditor() {
+      const editorElement = document.getElementById('monaco-editor');
+      
+      this.editor = monaco.editor.create(editorElement, {
+        value: this.config.initialContent || '',
+        language: this.config.language || 'javascript',
+        theme: 'vs', // Light theme to match your layout
+        automaticLayout: true,
+        fontSize: 14,
+        minimap: { enabled: true },
+        wordWrap: 'on',
+        readOnly: !this.config.canEdit,
+        lineNumbers: 'on',
+        renderWhitespace: 'boundary',
+        scrollBeyondLastLine: false,
+        smoothScrolling: true,
+        cursorBlinking: 'smooth'
+      });
+
+      this.setupEditorHandlers();
     }
 
     setupEditorHandlers() {
       this.editor.onDidChangeModelContent((e) => {
         if (this.isRemoteUpdate) return;
-        if (!this.config.canEdit || this.config.canEdit === 'false') return;
+        
+        this.hasUnsavedChanges = true;
+        this.updateLastSaved('Unsaved changes');
         
         const content = this.editor.getValue();
         const changes = this.detectChanges(e);
         
-        console.log('Content changed:', changes);
-        
-        // Track recent changes for conflict detection
-        const now = Date.now();
-        changes.lines.forEach(line => {
-          this.recentChanges.set(line, now);
-        });
-        
-        this.lastChangeTime = now;
-        
         clearTimeout(this.updateTimeout);
         this.updateTimeout = setTimeout(() => {
           this.sendContentUpdate(content, changes);
-        }, 200);
+        }, 300);
       });
 
       this.editor.onDidChangeCursorPosition((e) => {
-        if (this.isRemoteUpdate) return;
+        this.updateCursorPosition(e.position);
         
-        clearTimeout(this.cursorTimeout);
-        this.cursorTimeout = setTimeout(() => {
-          this.sendCursorUpdate(e.position);
-        }, 100);
+        if (!this.isRemoteUpdate) {
+          clearTimeout(this.cursorTimeout);
+          this.cursorTimeout = setTimeout(() => {
+            this.sendCursorUpdate(e.position);
+          }, 100);
+        }
       });
 
       this.editor.onDidChangeCursorSelection((e) => {
-        if (this.isRemoteUpdate) return;
+        this.updateSelectionInfo(e.selection);
         
-        const selection = e.selection;
-        if (!selection.isEmpty()) {
-          this.sendSelectionUpdate(selection);
+        if (!this.isRemoteUpdate && !e.selection.isEmpty()) {
+          this.sendSelectionUpdate(e.selection);
         }
       });
-    }
-
-    detectChanges(event) {
-      const changes = event.changes;
-      const affectedLines = new Set();
-      
-      changes.forEach(change => {
-        const startLine = change.range.startLineNumber;
-        const endLine = change.range.endLineNumber;
-        
-        if (change.text.includes('\n')) {
-          const insertedLines = change.text.split('\n').length - 1;
-          for (let i = startLine; i <= endLine + insertedLines; i++) {
-            affectedLines.add(i);
-          }
-        } else {
-          for (let i = startLine; i <= endLine; i++) {
-            affectedLines.add(i);
-          }
-        }
-      });
-      
-      return {
-        lines: Array.from(affectedLines),
-        operations: changes.map(c => ({
-          range: c.range,
-          text: c.text,
-          rangeLength: c.rangeLength
-        })),
-        timestamp: Date.now()
-      };
     }
 
     setupChannel() {
-      console.log('Setting up ActionCable channel...');
-      
-      if (!window.App || !window.App.cable) {
-        console.error('ActionCable not available');
-        return;
-      }
+      window.App = window.App || {};
+      window.App.cable = window.ActionCable.createConsumer();
 
       this.channel = window.App.cable.subscriptions.create(
         {
@@ -440,47 +383,43 @@
         {
           connected: () => {
             console.log('Connected to editor channel');
+            this.updateConnectionStatus('connected');
             this.showNotification('Connected to collaborative session', 'success');
           },
 
           disconnected: () => {
             console.log('Disconnected from editor channel');
+            this.updateConnectionStatus('disconnected');
             this.showNotification('Disconnected from collaborative session', 'warning');
           },
 
           received: (data) => {
             console.log('Received message:', data.type, data);
             this.handleMessage(data);
+          },
+
+          // Add ActionCable error handler
+          error: (error) => {
+            console.error('ActionCable error:', error);
           }
         }
       );
-      
-      window.testEditorChannel = () => {
-        if (this.channel) {
-          console.log('Channel exists, testing connection...');
-          this.channel.perform('test_connection', { message: 'test' });
-        } else {
-          console.error('No channel available');
-        }
-      };
-      
-      window.debugResolveConflict = (conflictId, action) => {
-        console.log(`Testing conflict resolution: ${conflictId} with action: ${action}`);
-        if (this.channel) {
-          this.channel.perform('resolve_conflict', {
-            conflict_id: conflictId.toString(),
-            resolution_action: action
-          });
-        } else {
-          console.error('No channel available');
-        }
-      };
+    }
+
+    setupUIHandlers() {
+      document.getElementById('saveBtn')?.addEventListener('click', () => {
+        this.saveFile();
+      });
+
+      document.getElementById('commitBtn')?.addEventListener('click', () => {
+        this.commitFile();
+      });
     }
 
     handleMessage(data) {
-      // Process all messages, but filter out own messages for certain types
+      // Filter out own messages for certain types
       if (data.sender_id === this.config.userId && 
-          !['initial_state', 'fresh_state', 'conflict_detected', 'conflict_resolution'].includes(data.type)) {
+          !['initial_state', 'fresh_state', 'conflict_detected', 'message_received', 'conflict_resolution'].includes(data.type)) {
         return;
       }
       
@@ -488,65 +427,170 @@
         case 'initial_state':
           this.handleInitialState(data);
           break;
-        case 'fresh_state':
-          this.handleFreshState(data);
-          break;
-        case 'content_update':
-          this.handleContentUpdate(data);
-          break;
         case 'user_joined':
           this.handleUserJoined(data);
           break;
         case 'user_left':
           this.handleUserLeft(data);
           break;
-        case 'cursor_update':
-          this.handleCursorUpdate(data);
+        case 'content_update':
+          this.handleContentUpdate(data);
           break;
-        case 'selection_update':
-          this.handleSelectionUpdate(data);
+        case 'message_received':
+          this.handleMessageReceived(data);
+          break;
+        case 'typing_indicator':
+          this.handleTypingIndicator(data);
           break;
         case 'conflict_detected':
           this.handleConflictDetected(data);
           break;
-        case 'conflict_created':
-          this.handleConflictCreated(data);
-          break;
         case 'conflict_resolution':
           this.handleConflictResolution(data);
           break;
-        case 'test_response':
-          console.log('Test response received:', data);
+        case 'fresh_state':
+          this.handleFreshState(data);
           break;
       }
     }
 
     handleInitialState(data) {
-      console.log('Handling initial state with content length:', data.content?.length || 0);
+      console.log('Handling initial state:', data);
       
-      if (data.content !== this.editor.getValue()) {
+      if (data.content && data.content !== this.editor.getValue()) {
         this.isRemoteUpdate = true;
-        this.editor.setValue(data.content || '');
-        this.lastContent = data.content || '';
+        this.editor.setValue(data.content);
         this.isRemoteUpdate = false;
       }
       
-      data.users.forEach(user => {
-        if (user.id !== this.config.userId) {
-          this.users.set(user.id, user);
+      if (data.users) {
+        this.users.clear();
+        data.users.forEach(user => {
+          // Only add other users, not the current user
+          if (user.id !== this.config.userId) {
+            this.users.set(user.id, user);
+          }
+        });
+      }
+      
+      if (data.recent_messages) {
+        // Clear existing messages first
+        const messagesContainer = document.getElementById('chatMessages');
+        messagesContainer.innerHTML = '';
+        
+        data.recent_messages.forEach(msg => {
+          this.addMessage(msg, false);
+        });
+        
+        // If no messages, show welcome message
+        if (data.recent_messages.length === 0) {
+          this.showWelcomeMessage();
         }
-      });
+      } else {
+        this.showWelcomeMessage();
+      }
       
       this.updateUsersList();
     }
 
-    handleFreshState(data) {
-      console.log('Handling fresh state with content length:', data.content?.length || 0);
-      
+    handleUserJoined(data) {
+      this.users.set(data.user.id, data.user);
+      this.updateUsersList();
+      this.showSmartNotification(`${data.user.name} joined the session`, 'info', 'user_activity');
+    }
+
+    handleUserLeft(data) {
+      const user = this.users.get(data.user_id);
+      if (user) {
+        this.users.delete(data.user_id);
+        this.updateUsersList();
+        this.showSmartNotification(`${user.name} left the session`, 'info', 'user_activity');
+      }
+    }
+
+    handleContentUpdate(data) {
       this.isRemoteUpdate = true;
-      this.editor.setValue(data.content || '');
-      this.lastContent = data.content || '';
+      this.editor.setValue(data.content);
       this.isRemoteUpdate = false;
+      
+      const user = this.users.get(data.user_id);
+      if (user && this.shouldShowContentNotification()) {
+        this.showSmartNotification(`${user.name} updated the file`, 'info', 'content_update', true);
+      }
+    }
+
+    handleMessageReceived(data) {
+      this.addMessage(data);
+      
+      if (!this.isChatOpen) {
+        this.unreadMessages++;
+        this.updateChatBadge();
+        this.showSmartNotification(`💬 ${data.user_name}: ${this.truncateMessage(data.message)}`, 'info', 'message');
+      }
+    }
+
+    handleTypingIndicator(data) {
+      const indicator = document.getElementById('typingIndicator');
+      const user = this.users.get(data.user_id);
+      
+      if (data.is_typing && user) {
+        indicator.innerHTML = `
+          <div class="typing-animation d-flex align-items-center">
+            <div class="typing-dots me-2">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+            <small class="text-muted">${user.name} is typing...</small>
+          </div>
+        `;
+      } else {
+        indicator.innerHTML = '';
+      }
+    }
+
+    handleConflictDetected(data) {
+      const user = this.users.get(data.conflicting_user_id);
+      const userName = user ? user.name : 'Another user';
+      
+      this.showNotification(`⚠️ Edit conflict with ${userName} on lines ${data.lines.join(', ')}`, 'warning');
+      this.showConflictModal(data);
+    }
+
+    handleConflictResolution(data) {
+      console.log('Conflict resolution received:', data);
+      
+      switch (data.action) {
+        case 'accepted':
+          if (data.content && data.content !== this.editor.getValue()) {
+            this.isRemoteUpdate = true;
+            this.editor.setValue(data.content);
+            this.isRemoteUpdate = false;
+          }
+          this.showNotification('Conflict resolved - content updated', 'success');
+          break;
+        case 'ignored':
+          if (data.content && data.content !== this.editor.getValue()) {
+            this.isRemoteUpdate = true;
+            this.editor.setValue(data.content);
+            this.isRemoteUpdate = false;
+          }
+          this.showNotification('Conflict ignored - content restored', 'success');
+          break;
+        case 'error':
+          this.showNotification(`Conflict resolution error: ${data.message}`, 'danger');
+          break;
+      }
+    }
+
+    handleFreshState(data) {
+      console.log('Fresh state received:', data);
+      
+      if (data.content && data.content !== this.editor.getValue()) {
+        this.isRemoteUpdate = true;
+        this.editor.setValue(data.content);
+        this.isRemoteUpdate = false;
+      }
       
       if (data.users) {
         this.users.clear();
@@ -558,502 +602,306 @@
         this.updateUsersList();
       }
       
-      this.showNotification('Editor refreshed with latest content', 'info');
+      this.showNotification('Editor refreshed with latest content', 'success');
     }
 
-    handleContentUpdate(data) {
-      console.log('Handling content update from user', data.user_id);
+    // Message handling
+    sendMessage() {
+      const input = document.getElementById('messageInput');
+      const message = input.value.trim();
       
-      // Check for potential conflicts with recent changes
-      if (data.changes && data.changes.lines) {
-        const conflictingLines = data.changes.lines.filter(line => 
-          this.recentChanges.has(line) && 
-          (Date.now() - this.recentChanges.get(line)) < 5000 // 5 second window
-        );
-        
-        if (conflictingLines.length > 0) {
-          console.log('Potential conflict detected on lines:', conflictingLines);
-          this.handlePotentialConflict(data.user_id, conflictingLines, data.changes);
-        }
+      if (!message) return;
+      
+      // Send to server
+      if (this.channel) {
+        this.channel.perform('send_message', { message });
       }
       
-      this.isRemoteUpdate = true;
-      this.editor.setValue(data.content);
-      this.lastContent = data.content;
+      input.value = '';
+      document.getElementById('messageLength').textContent = '0';
+      this.stopTyping();
+    }
+
+    addMessage(data, animate = true) {
+      const messagesContainer = document.getElementById('chatMessages');
       
-      const user = this.users.get(data.user_id);
-      if (user) {
-        this.showNotification(`${user.name} updated the file`, 'info', 2000);
+      // Remove welcome message if it exists
+      const welcomeMessage = messagesContainer.querySelector('.welcome-message');
+      if (welcomeMessage) {
+        welcomeMessage.remove();
       }
       
-      this.isRemoteUpdate = false;
-    }
-
-    handlePotentialConflict(userId, lines, changes) {
-      const user = this.users.get(userId);
-      const userName = user ? user.name : 'Another user';
+      const messageElement = document.createElement('div');
+      const isOwnMessage = data.user_id === this.config.userId;
       
-      console.log(`Potential conflict with ${userName} on lines:`, lines);
+      messageElement.className = `message ${isOwnMessage ? 'own-message' : 'other-message'} mb-3`;
       
-      // Show conflict notification and dialog
-      this.showNotification(
-        `⚠️ Conflict: ${userName} edited lines ${lines.join(', ')} that you recently modified`,
-        'warning',
-        0
-      );
-      
-      // Highlight conflict lines
-      this.highlightConflict(lines);
-      
-      // Create a mock conflict data for the dialog
-      const conflictData = {
-        conflict_id: Date.now(), // Generate temporary ID
-        conflicting_user_id: userId,
-        lines: lines,
-        user_changes: changes
-      };
-      
-      this.currentConflictId = conflictData.conflict_id;
-      this.showConflictDialog(conflictData);
-    }
-
-    handleUserJoined(data) {
-      console.log('User joined:', data.user);
-      this.users.set(data.user.id, data.user);
-      this.updateUsersList();
-      this.showNotification(`${data.user.name} joined the session`, 'info');
-    }
-
-    handleUserLeft(data) {
-      const user = this.users.get(data.user_id);
-      if (user) {
-        this.showNotification(`${user.name} left the session`, 'info');
-      }
-      
-      this.users.delete(data.user_id);
-      this.removeCursor(data.user_id);
-      this.updateUsersList();
-    }
-
-    handleCursorUpdate(data) {
-      this.showCursor(data.user_id, data.line, data.column);
-    }
-
-    handleSelectionUpdate(data) {
-      this.showSelection(data.user_id, {
-        startLineNumber: data.start_line,
-        startColumn: data.start_column,
-        endLineNumber: data.end_line,
-        endColumn: data.end_column
-      });
-    }
-
-    handleConflictDetected(data) {
-      console.log('Conflict detected for current user:', data);
-      
-      this.currentConflictId = data.conflict_id;
-      console.log('Stored conflict ID:', this.currentConflictId);
-      
-      const user = this.users.get(data.conflicting_user_id);
-      const userName = user ? user.name : 'Another user';
-      
-      this.showNotification(
-        `⚠️ Conflict: ${userName} edited lines ${data.lines.join(', ')} that you were working on`,
-        'warning',
-        0
-      );
-      
-      this.highlightConflict(data.lines);
-      this.showConflictDialog(data);
-    }
-
-    handleConflictCreated(data) {
-      console.log('Conflict created by current user:', data);
-      this.showNotification('Your changes may conflict with other users\' work', 'info', 4000);
-    }
-
-    handleConflictResolution(data) {
-      console.log('Conflict resolution received:', data);
-      
-      if (data.action === 'accepted') {
-        if (data.content) {
-          console.log('Updating editor with fresh content');
-          this.isRemoteUpdate = true;
-          this.editor.setValue(data.content);
-          this.lastContent = data.content;
-          this.isRemoteUpdate = false;
-          this.showNotification('Conflict resolved - content updated', 'success');
-        } else {
-          console.warn('No content in accepted resolution, refreshing instead');
-          this.refreshEditor();
-          this.showNotification('Conflict resolved - refreshed content', 'success');
-        }
-      } else if (data.action === 'ignored') {
-        if (data.content) {
-          console.log('Restoring content to user version');
-          this.isRemoteUpdate = true;
-          this.editor.setValue(data.content);
-          this.lastContent = data.content;
-          this.isRemoteUpdate = false;
-          this.showNotification('Conflict ignored - your changes preserved', 'success');
-        } else {
-          console.log('Conflict ignored - keeping current content');
-          this.showNotification('Conflict ignored - keeping your changes', 'info');
-        }
-      } else if (data.action === 'error') {
-        this.showNotification(data.message || 'Error resolving conflict', 'danger');
-        console.error('Conflict resolution error:', data);
+      // Handle timestamp - could be Unix timestamp or ISO string
+      let time;
+      if (typeof data.timestamp === 'number') {
+        time = new Date(data.timestamp * 1000).toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
       } else {
-        console.warn('Unknown conflict resolution action:', data.action);
-        this.showNotification('Conflict resolution completed', 'info');
+        time = new Date(data.timestamp).toLocaleTimeString([], { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
       }
       
-      this.currentConflictId = null;
-      console.log('Cleared conflict ID and closing modal');
-      this.closeConflictModal();
-    }
-
-    showCursor(userId, line, column) {
-      const user = this.users.get(userId);
-      if (!user) return;
-      
-      const oldDecoration = this.cursors.get(userId);
-      if (oldDecoration) {
-        this.editor.deltaDecorations([oldDecoration], []);
-      }
-      
-      const decoration = this.editor.deltaDecorations([], [{
-        range: new monaco.Range(line, column, line, column),
-        options: {
-          className: `user-cursor user-cursor-${userId}`,
-          beforeContentClassName: 'cursor-label',
-          hoverMessage: { value: `${user.name}'s cursor` }
-        }
-      }]);
-      
-      this.cursors.set(userId, decoration[0]);
-    }
-
-    removeCursor(userId) {
-      const decoration = this.cursors.get(userId);
-      if (decoration) {
-        this.editor.deltaDecorations([decoration], []);
-        this.cursors.delete(userId);
-      }
-    }
-
-    showSelection(userId, range) {
-      const user = this.users.get(userId);
-      if (!user) return;
-      
-      const oldDecoration = this.decorations.get(`selection-${userId}`);
-      if (oldDecoration) {
-        this.editor.deltaDecorations([oldDecoration], []);
-      }
-      
-      const decoration = this.editor.deltaDecorations([], [{
-        range: range,
-        options: {
-          className: `user-selection user-selection-${userId}`,
-          stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-          hoverMessage: { value: `${user.name}'s selection` }
-        }
-      }]);
-      
-      this.decorations.set(`selection-${userId}`, decoration[0]);
-    }
-
-    highlightConflict(lines) {
-      const decorations = lines.map(line => ({
-        range: new monaco.Range(line, 1, line, 1),
-        options: {
-          isWholeLine: true,
-          className: 'conflict-line',
-          glyphMarginClassName: 'conflict-glyph',
-          hoverMessage: { value: 'This line has edit conflicts' }
-        }
-      }));
-      
-      const ids = this.editor.deltaDecorations([], decorations);
-      
-      setTimeout(() => {
-        this.editor.deltaDecorations(ids, []);
-      }, 10000);
-    }
-
-    showConflictDialog(data) {
-      const modal = document.getElementById('conflictModal');
-      const body = document.getElementById('conflictModalBody');
-      
-      if (!modal || !body) {
-        console.warn('Conflict modal elements not found');
-        return;
-      }
-      
-      const user = this.users.get(data.conflicting_user_id);
-      const userName = user ? user.name : 'Another user';
-      
-      body.innerHTML = `
-        <div class="alert alert-warning">
-          <i class="fas fa-exclamation-triangle me-2"></i>
-          <strong>Edit Conflict Detected</strong>
-        </div>
-        <p><strong>${userName}</strong> edited lines <strong>${data.lines.join(', ')}</strong> that you were working on.</p>
-        <p>You can either accept their changes or ignore this conflict and continue with your version.</p>
-        <hr>
-        <p><strong>What would you like to do?</strong></p>
-        <div class="d-grid gap-2">
-          <button id="acceptChangesBtn" class="btn btn-primary">
-            <i class="fas fa-download me-2"></i>
-            Accept their changes (recommended)
-          </button>
-          <button id="ignoreConflictBtn" class="btn btn-outline-secondary">
-            <i class="fas fa-times me-2"></i>
-            Ignore conflict (keep my version)
-          </button>
-          <button id="refreshEditorBtn" class="btn btn-outline-info">
-            <i class="fas fa-sync me-2"></i>
-            Refresh to see latest version
-          </button>
+      messageElement.innerHTML = `
+        <div class="d-flex ${isOwnMessage ? 'justify-content-end' : 'justify-content-start'}">
+          <div class="message-content">
+            <div class="message-header d-flex justify-content-between align-items-center mb-1">
+              <span class="message-author fw-semibold">${this.escapeHtml(data.user_name)}</span>
+              <span class="message-time text-muted small">${time}</span>
+            </div>
+            <div class="message-text">${this.formatMessageText(data.message)}</div>
+          </div>
         </div>
       `;
       
-      const acceptBtn = body.querySelector('#acceptChangesBtn');
-      const ignoreBtn = body.querySelector('#ignoreConflictBtn');
-      const refreshBtn = body.querySelector('#refreshEditorBtn');
+      messagesContainer.appendChild(messageElement);
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
       
-      if (acceptBtn) {
-        acceptBtn.addEventListener('click', () => this.acceptTheirChanges());
+      if (animate) {
+        messageElement.style.opacity = '0';
+        messageElement.style.transform = 'translateY(10px)';
+        setTimeout(() => {
+          messageElement.style.transition = 'all 0.3s ease';
+          messageElement.style.opacity = '1';
+          messageElement.style.transform = 'translateY(0)';
+        }, 10);
       }
       
-      if (ignoreBtn) {
-        ignoreBtn.addEventListener('click', () => this.ignoreConflict());
-      }
-      
-      if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => this.refreshEditor());
-      }
-      
-      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-        const bsModal = new bootstrap.Modal(modal);
-        bsModal.show();
-      } else {
-        modal.style.display = 'block';
-        modal.classList.add('show');
-        document.body.classList.add('modal-open');
-      }
+      this.messages.push(data);
     }
 
-    acceptTheirChanges() {
-      console.log('Accepting their changes, conflict ID:', this.currentConflictId);
-      
-      if (this.currentConflictId && this.channel) {
-        console.log('Performing resolve_conflict with accept action');
-        this.channel.perform('resolve_conflict', {
-          conflict_id: this.currentConflictId.toString(),
-          resolution_action: 'accept'
-        });
-        
-        this.showNotification('Accepting their changes...', 'info');
-      } else {
-        console.warn('No current conflict ID, falling back to refresh');
-        this.refreshEditor();
-        this.closeConflictModal();
-        this.showNotification('Refreshed to get latest content', 'info');
-      }
+    showWelcomeMessage() {
+      const messagesContainer = document.getElementById('chatMessages');
+      messagesContainer.innerHTML = `
+        <div class="welcome-message">
+          <div class="text-center text-muted py-4">
+            <i class="bi bi-chat-heart fs-3 mb-2 d-block"></i>
+            <p class="mb-0">Welcome to team chat!</p>
+            <small>Start collaborating with your team members</small>
+          </div>
+        </div>
+      `;
     }
 
-    ignoreConflict() {
-      console.log('Ignoring conflict, conflict ID:', this.currentConflictId);
-      
-      if (this.currentConflictId && this.channel) {
-        console.log('Performing resolve_conflict with ignore action');
-        this.channel.perform('resolve_conflict', {
-          conflict_id: this.currentConflictId.toString(),
-          resolution_action: 'ignore'
-        });
-        
-        this.showNotification('Ignoring conflict...', 'info');
-      } else {
-        console.warn('No current conflict ID, just closing modal');
-        this.closeConflictModal();
-        this.showNotification('Conflict ignored', 'info');
-      }
-    }
-
-    refreshEditor() {
-      if (this.channel) {
-        this.channel.perform('request_fresh_state', {});
-      }
-      this.closeConflictModal();
-    }
-
-    closeConflictModal() {
-      console.log('Attempting to close conflict modal');
-      const modal = document.getElementById('conflictModal');
-      if (!modal) {
-        console.warn('Conflict modal not found');
-        this.cleanupModalState();
-        return;
-      }
-      
-      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-        try {
-          const bsModal = bootstrap.Modal.getInstance(modal);
-          if (bsModal) {
-            console.log('Closing modal using Bootstrap');
-            bsModal.hide();
-          } else {
-            console.log('No Bootstrap modal instance, creating one to close');
-            const newModal = new bootstrap.Modal(modal);
-            newModal.hide();
-          }
-        } catch (error) {
-          console.warn('Bootstrap modal close failed, using manual close:', error);
-          this.manualModalClose(modal);
+    handleTyping() {
+      if (!this.isTyping) {
+        this.isTyping = true;
+        if (this.channel) {
+          this.channel.perform('typing_indicator', { is_typing: true });
         }
-      } else {
-        console.log('Bootstrap not available, hiding manually');
-        this.manualModalClose(modal);
       }
       
-      setTimeout(() => {
-        this.cleanupModalState();
-      }, 300);
+      clearTimeout(this.typingTimeout);
+      this.typingTimeout = setTimeout(() => {
+        this.stopTyping();
+      }, 1000);
     }
 
-    manualModalClose(modal) {
-      modal.style.display = 'none';
-      modal.classList.remove('show');
-      modal.setAttribute('aria-hidden', 'true');
-      modal.removeAttribute('aria-modal');
-      
-      document.body.classList.remove('modal-open');
-      
-      const backdrop = document.querySelector('.modal-backdrop');
-      if (backdrop) {
-        backdrop.remove();
+    stopTyping() {
+      if (this.isTyping) {
+        this.isTyping = false;
+        if (this.channel) {
+          this.channel.perform('typing_indicator', { is_typing: false });
+        }
       }
-      
-      document.body.style.paddingRight = '';
-      document.body.style.overflow = '';
     }
 
-    cleanupModalState() {
-      console.log('Cleaning up modal state');
-      
-      const backdrops = document.querySelectorAll('.modal-backdrop');
-      backdrops.forEach(backdrop => backdrop.remove());
-      
-      document.body.classList.remove('modal-open');
-      document.body.style.paddingRight = '';
-      document.body.style.overflow = '';
-      
-      const modal = document.getElementById('conflictModal');
-      if (modal) {
-        modal.style.display = 'none';
-        modal.classList.remove('show');
-        modal.setAttribute('aria-hidden', 'true');
-        modal.removeAttribute('aria-modal');
-      }
-      
-      console.log('Modal state cleanup completed');
-    }
-
-    sendContentUpdate(content, changes) {
-      if (!this.channel) return;
-      
-      console.log('Sending content update:', changes);
-      
-      this.channel.perform('content_update', {
-        content: content,
-        changes: changes
-      });
-      
-      this.lastContent = content;
-    }
-
-    sendCursorUpdate(position) {
-      if (!this.channel) return;
-      
-      this.channel.perform('cursor_update', {
-        line: position.lineNumber,
-        column: position.column
-      });
-    }
-
-    sendSelectionUpdate(selection) {
-      if (!this.channel) return;
-      
-      this.channel.perform('selection_update', {
-        start_line: selection.startLineNumber,
-        start_column: selection.startColumn,
-        end_line: selection.endLineNumber,
-        end_column: selection.endColumn
-      });
-    }
-
+    // UI Updates
     updateUsersList() {
       const container = document.getElementById('activeUsers');
-      if (!container) return;
+      const chatContainer = document.getElementById('chatUsersList');
+      const onlineCount = document.getElementById('onlineCount');
       
-      container.innerHTML = Array.from(this.users.values())
-        .map(user => `
-          <div class="user-avatar" style="background-color: ${user.color}" title="${user.name}">
-            ${user.name.substring(0, 2).toUpperCase()}
+      // Only show other users in the header
+      const otherUsers = Array.from(this.users.values());
+      const userElements = otherUsers.map(user => `
+        <div class="user-avatar" 
+             style="background-color: ${user.color}" 
+             title="${user.name}">
+          ${user.name.substring(0, 2).toUpperCase()}
+        </div>
+      `).join('');
+      
+      if (container) {
+        container.innerHTML = userElements;
+      }
+      
+      // Update chat users list - show current user first, then others
+      if (chatContainer) {
+        // Current user first
+        const currentUserElement = `
+          <div class="chat-user-item current-user">
+            <div class="user-avatar-small bg-primary">
+              ${this.config.userName.substring(0, 1).toUpperCase()}
+            </div>
+            <span class="user-name">${this.escapeHtml(this.config.userName)} (You)</span>
+            <div class="user-status online"></div>
+          </div>
+        `;
+        
+        // Other users
+        const chatUserElements = otherUsers.map(user => `
+          <div class="chat-user-item">
+            <div class="user-avatar-small" style="background-color: ${user.color}">
+              ${user.name.substring(0, 1).toUpperCase()}
+            </div>
+            <span class="user-name">${this.escapeHtml(user.name)}</span>
+            <div class="user-status online"></div>
           </div>
         `).join('');
-    }
-
-    setupUIHandlers() {
-      const saveBtn = document.getElementById('saveBtn');
-      if (saveBtn) {
-        saveBtn.addEventListener('click', async () => {
-          if (this.config.canEdit === 'true' || this.config.canEdit === true) {
-            await this.saveFile();
-          }
-        });
+        
+        chatContainer.innerHTML = currentUserElement + chatUserElements;
       }
       
-      const commitBtn = document.getElementById('commitBtn');
-      if (commitBtn) {
-        commitBtn.addEventListener('click', async () => {
-          if (this.config.canEdit === 'true' || this.config.canEdit === true) {
-            await this.commitFile();
-          }
-        });
+      // Total count includes current user
+      if (onlineCount) {
+        onlineCount.textContent = this.users.size + 1;
       }
     }
 
+    updateChatBadge() {
+      const badge = document.getElementById('chatNotificationBadge');
+      
+      if (this.unreadMessages > 0) {
+        badge.textContent = this.unreadMessages > 99 ? '99+' : this.unreadMessages;
+        badge.style.display = 'inline';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    updateConnectionStatus(status) {
+      const statusElement = document.getElementById('connectionStatus');
+      
+      switch (status) {
+        case 'connected':
+          statusElement.innerHTML = '<i class="bi bi-circle-fill text-success me-1"></i><small class="text-muted">Connected</small>';
+          break;
+        case 'connecting':
+          statusElement.innerHTML = '<i class="bi bi-circle-fill text-warning me-1"></i><small class="text-muted">Connecting...</small>';
+          break;
+        case 'disconnected':
+          statusElement.innerHTML = '<i class="bi bi-circle-fill text-danger me-1"></i><small class="text-muted">Disconnected</small>';
+          break;
+      }
+    }
+
+    updateCursorPosition(position) {
+      const element = document.getElementById('cursorPosition');
+      if (element) {
+        element.textContent = `Line ${position.lineNumber}, Col ${position.column}`;
+      }
+    }
+
+    updateSelectionInfo(selection) {
+      const element = document.getElementById('selectionInfo');
+      
+      if (selection.isEmpty()) {
+        element.style.display = 'none';
+      } else {
+        const selectedText = this.editor.getModel().getValueInRange(selection);
+        element.textContent = `Selected: ${selectedText.length} chars`;
+        element.style.display = 'inline';
+      }
+    }
+
+    updateLastSaved(text) {
+      const element = document.getElementById('lastSaved');
+      if (element) {
+        element.textContent = text;
+        
+        if (text === 'Unsaved changes') {
+          element.classList.add('text-warning');
+          element.classList.remove('text-success');
+        } else {
+          element.classList.remove('text-warning');
+          element.classList.add('text-success');
+        }
+      }
+    }
+
+    updateUI() {
+      // Update UI elements with actual config values
+      const fileNameEl = document.getElementById('fileName');
+      const branchNameEl = document.getElementById('branchName');
+      const languageModeEl = document.getElementById('languageMode');
+      const editorModeEl = document.getElementById('editorMode');
+      const saveBtnEl = document.getElementById('saveBtn');
+      const commitBtnEl = document.getElementById('commitBtn');
+      
+      if (fileNameEl) fileNameEl.textContent = this.config.fileName || 'Unknown file';
+      if (branchNameEl) branchNameEl.textContent = this.config.branch || 'main';
+      if (languageModeEl) languageModeEl.innerHTML = `<i class="bi bi-code-slash me-1"></i>${this.config.language || 'text'}`;
+      
+      if (!this.config.canEdit) {
+        if (editorModeEl) editorModeEl.innerHTML = '<i class="bi bi-eye me-1"></i>Read Only';
+        if (saveBtnEl) saveBtnEl.disabled = true;
+        if (commitBtnEl) commitBtnEl.disabled = true;
+      }
+    }
+
+    // File operations
     async saveFile() {
       const btn = document.getElementById('saveBtn');
-      if (!btn) return;
+      const originalText = btn.innerHTML;
       
       btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+      btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Saving...';
       
       try {
+        const content = this.editor.getValue();
+        
+        // Debug logging
+        console.log('Saving to path:', this.config.savePath);
+        console.log('Content length:', content.length);
+        
         const response = await fetch(this.config.savePath, {
-          method: 'POST',
+          method: 'POST', // Changed back to POST for the save route
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+            'X-CSRF-Token': document.querySelector('[name="csrf-token"]').getAttribute('content'),
+            'Accept': 'application/json' // Ensure we expect JSON back
           },
           body: new URLSearchParams({
-            content: this.editor.getValue()
+            content: content,
+            path: this.config.currentPath // Add the path parameter as expected by your controller
           })
         });
         
-        if (response.ok) {
+        console.log('Save response status:', response.status);
+        console.log('Save response headers:', response.headers.get('content-type'));
+        
+        if (!response.ok) {
+          // Log the actual response for debugging
+          const responseText = await response.text();
+          console.error('Save failed response:', responseText);
+          throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 100)}`);
+        }
+        
+        const result = await response.json();
+        console.log('Save result:', result);
+        
+        if (result.status === 'success') {
+          this.hasUnsavedChanges = false;
+          this.updateLastSaved(`Saved at ${new Date().toLocaleTimeString()}`);
           this.showNotification('File saved successfully', 'success');
         } else {
-          throw new Error('Save failed');
+          throw new Error(result.message || 'Save failed');
         }
       } catch (error) {
-        this.showNotification('Failed to save file', 'danger');
+        console.error('Save error:', error);
+        this.showNotification(`Failed to save file: ${error.message}`, 'danger');
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-save me-2"></i>Save';
+        btn.disabled = !this.config.canEdit;
+        btn.innerHTML = originalText;
       }
     }
 
@@ -1062,336 +910,1072 @@
       if (!message) return;
       
       const btn = document.getElementById('commitBtn');
+      const originalText = btn.innerHTML;
+      
       btn.disabled = true;
-      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Committing...';
+      btn.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Committing...';
       
       try {
         const response = await fetch(this.config.commitPath, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+            'X-CSRF-Token': document.querySelector('[name="csrf-token"]').getAttribute('content')
           },
           body: new URLSearchParams({
-            message: message
+            message: message,
+            path: this.config.currentPath
           })
         });
         
-        if (response.ok) {
+        const result = await response.json();
+        
+        if (result.status === 'success') {
           this.showNotification('Changes committed successfully', 'success');
+          this.hasUnsavedChanges = false;
+          this.updateLastSaved('Committed');
         } else {
-          throw new Error('Commit failed');
+          throw new Error(result.message || 'Commit failed');
         }
       } catch (error) {
-        this.showNotification('Failed to commit changes', 'danger');
+        this.showNotification(`Failed to commit changes: ${error.message}`, 'danger');
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-check me-2"></i>Commit';
+        btn.disabled = !this.config.canEdit;
+        btn.innerHTML = originalText;
       }
     }
 
-    showNotification(message, type = 'info', duration = 3000) {
-      const container = document.getElementById('notifications');
-      if (!container) {
-        console.warn('Notifications container not found');
+    // Notification system
+    showSmartNotification(message, type = 'info', category = 'general', throttled = false) {
+      if (throttled && this.shouldThrottleNotification(category)) {
         return;
       }
       
-      const alertType = type === 'error' ? 'danger' : type;
-      const id = Date.now();
+      this.showNotification(message, type);
+    }
+
+    shouldThrottleNotification(category) {
+      const now = Date.now();
+      const count = this.notificationCounts.get(category) || 0;
+      const lastTime = this.lastNotificationTime.get(category) || 0;
       
-      const alert = document.createElement('div');
-      alert.className = `alert alert-${alertType} alert-dismissible fade show`;
-      alert.setAttribute('data-notification-id', id);
-      alert.innerHTML = `
+      if (count >= 3 && (now - lastTime) < 60000) {
+        return true;
+      }
+      
+      if ((now - lastTime) < 3000) {
+        return true;
+      }
+      
+      this.notificationCounts.set(category, count + 1);
+      this.lastNotificationTime.set(category, now);
+      return false;
+    }
+
+    shouldShowContentNotification() {
+      const now = Date.now();
+      const lastContentNotification = this.lastNotificationTime.get('content_update') || 0;
+      return (now - lastContentNotification) > 10000;
+    }
+
+    showNotification(message, type = 'info', duration = 4000) {
+      const container = document.getElementById('notifications');
+      const toast = document.createElement('div');
+      
+      const alertClass = type === 'error' ? 'danger' : type;
+      toast.className = `alert alert-${alertClass} alert-dismissible fade show`;
+      
+      const icon = this.getIconForType(type);
+      toast.innerHTML = `
         <div class="d-flex align-items-center">
-          <i class="fas fa-${this.getIconForType(type)} me-2"></i>
+          <i class="bi bi-${icon} me-2"></i>
           <span>${message}</span>
         </div>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
       `;
       
-      container.appendChild(alert);
+      container.appendChild(toast);
       
       if (duration > 0) {
         setTimeout(() => {
-          if (alert.parentNode) {
-            alert.remove();
+          if (toast.parentNode) {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 150);
           }
         }, duration);
       }
     }
 
+    showConflictModal(data) {
+      const modal = document.getElementById('conflictModal');
+      const body = document.getElementById('conflictModalBody');
+      
+      const user = this.users.get(data.conflicting_user_id);
+      const userName = user ? user.name : 'Another user';
+      
+      body.innerHTML = `
+        <div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          <strong>Edit Conflict Detected</strong>
+        </div>
+        <p class="mb-3">
+          <strong>${userName}</strong> edited lines <strong>${data.lines.join(', ')}</strong> 
+          that you were working on. This might cause conflicts in your changes.
+        </p>
+        <div class="d-grid gap-2">
+          <button class="btn btn-primary" onclick="window.collaborativeEditor.resolveConflict('accept', '${data.conflict_id}')">
+            <i class="bi bi-download me-2"></i>
+            Accept their changes (recommended)
+          </button>
+          <button class="btn btn-outline-secondary" onclick="window.collaborativeEditor.resolveConflict('ignore', '${data.conflict_id}')">
+            <i class="bi bi-x-circle me-2"></i>
+            Keep my version
+          </button>
+          <button class="btn btn-outline-info" onclick="window.collaborativeEditor.refreshEditor(); closeConflictModal();">
+            <i class="bi bi-arrow-clockwise me-2"></i>
+            Refresh to see latest
+          </button>
+        </div>
+      `;
+
+      // Show modal without backdrop to prevent editor blocking
+      const bsModal = new bootstrap.Modal(modal, {
+        backdrop: false,
+        keyboard: false
+      });
+      bsModal.show();
+    }
+
+    resolveConflict(action, conflictId) {
+      console.log('Resolving conflict with action:', action, 'conflictId:', conflictId);
+      
+      if (!this.channel || !this.channel.perform) {
+        console.error('Channel not available for conflict resolution');
+        return;
+      }
+      
+      try {
+        const payload = {
+          conflict_id: String(conflictId), // Ensure it's a string
+          resolution_action: action        // Use resolution_action as your Rails expects
+        };
+        
+        // Add user content for ignore action
+        if (action === 'ignore') {
+          payload.user_content = this.editor.getValue();
+        }
+        
+        console.log('Sending resolve_conflict payload:', payload);
+        
+        // Use the ActionCable perform method
+        this.channel.perform('resolve_conflict', payload);
+        
+      } catch (error) {
+        console.error('Error sending conflict resolution:', error);
+        this.showNotification('Failed to resolve conflict', 'danger');
+        return;
+      }
+      
+      this.showNotification(
+        action === 'accept' ? 'Accepting their changes...' : 'Keeping your version...',
+        'info'
+      );
+      
+      closeConflictModal();
+    }
+
+    refreshEditor() {
+      if (this.channel) {
+        this.channel.perform('request_fresh_state', {});
+        this.showNotification('Refreshing editor content...', 'info');
+      }
+    }
+
+    // Utility methods
+    detectChanges(event) {
+      const changes = event.changes;
+      const affectedLines = new Set();
+      
+      changes.forEach(change => {
+        const startLine = change.range.startLineNumber;
+        const endLine = change.range.endLineNumber;
+        
+        for (let i = startLine; i <= endLine; i++) {
+          affectedLines.add(i);
+        }
+      });
+      
+      return {
+        lines: Array.from(affectedLines),
+        timestamp: Date.now()
+      };
+    }
+
+    sendContentUpdate(content, changes) {
+      if (this.channel) {
+        this.channel.perform('content_update', {
+          content: content,
+          changes: changes
+        });
+      }
+    }
+
+    sendCursorUpdate(position) {
+      if (this.channel) {
+        this.channel.perform('cursor_update', {
+          line: position.lineNumber,
+          column: position.column
+        });
+      }
+    }
+
+    sendSelectionUpdate(selection) {
+      if (this.channel) {
+        this.channel.perform('selection_update', {
+          start_line: selection.startLineNumber,
+          start_column: selection.startColumn,
+          end_line: selection.endLineNumber,
+          end_column: selection.endColumn
+        });
+      }
+    }
+
+    formatMessageText(text) {
+      return this.escapeHtml(text)
+        .replace(/:\)/g, '😊')
+        .replace(/:\(/g, '😢')
+        .replace(/:D/g, '😃')
+        .replace(/;\)/g, '😉')
+        .replace(/<3/g, '❤️');
+    }
+
+    truncateMessage(message, length = 50) {
+      return message.length > length ? message.substring(0, length) + '...' : message;
+    }
+
+    escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
     getIconForType(type) {
       const icons = {
-        'success': 'check-circle',
-        'info': 'info-circle',
-        'warning': 'exclamation-triangle',
-        'danger': 'exclamation-circle',
-        'error': 'exclamation-circle'
+        'success': 'check-circle-fill',
+        'info': 'info-circle-fill',
+        'warning': 'exclamation-triangle-fill',
+        'danger': 'exclamation-circle-fill',
+        'error': 'exclamation-circle-fill'
       };
-      return icons[type] || 'info-circle';
+      return icons[type] || 'info-circle-fill';
     }
   }
 
-  // Enhanced CSS for better conflict visualization
-  const style = document.createElement('style');
-  style.textContent = `
-    .user-cursor {
-      border-left: 2px solid;
-      animation: blink 1s ease-in-out infinite;
-      position: relative;
-    }
+  // Global functions for UI interactions
+  window.toggleChatSidebar = function() {
+    const sidebar = document.getElementById('chatSidebar');
+    const editorContainer = document.getElementById('editorContainer');
+    const toggleBtn = document.getElementById('chatToggleBtn');
+    const isOpen = sidebar.classList.contains('open');
     
-    @keyframes blink {
-      0%, 50%, 100% { opacity: 1; }
-      25%, 75% { opacity: 0; }
+    if (isOpen) {
+      sidebar.classList.remove('open');
+      editorContainer.classList.remove('chat-open');
+      toggleBtn.classList.remove('active');
+      if (window.collaborativeEditor) {
+        window.collaborativeEditor.isChatOpen = false;
+      }
+    } else {
+      sidebar.classList.add('open');
+      editorContainer.classList.add('chat-open');
+      toggleBtn.classList.add('active');
+      if (window.collaborativeEditor) {
+        window.collaborativeEditor.isChatOpen = true;
+        window.collaborativeEditor.unreadMessages = 0;
+        window.collaborativeEditor.updateChatBadge();
+        
+        // Focus chat input when opened
+        setTimeout(() => {
+          document.getElementById('messageInput')?.focus();
+        }, 300);
+      }
     }
-    
-    .cursor-label::before {
-      content: attr(data-username);
-      position: absolute;
-      top: -25px;
-      left: 2px;
-      background: rgba(0, 0, 0, 0.8);
-      color: white;
-      padding: 2px 6px;
-      border-radius: 3px;
-      font-size: 11px;
-      white-space: nowrap;
-      z-index: 100;
-    }
-    
-    .user-selection {
-      background-color: rgba(0, 123, 255, 0.15);
-      border: 1px solid rgba(0, 123, 255, 0.3);
-    }
-    
-    .conflict-line {
-      background-color: rgba(255, 193, 7, 0.2) !important;
-      border-left: 4px solid #ffc107 !important;
-    }
-    
-    .conflict-glyph {
-      background-color: #ffc107 !important;
-      width: 12px !important;
-      height: 12px !important;
-      border-radius: 50%;
-      margin: 2px;
-    }
-    
-    .conflict-glyph::before {
-      content: "!";
-      color: #fff;
-      font-weight: bold;
-      font-size: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100%;
-    }
-  `;
-  document.head.appendChild(style);
+  };
 
-  window.collaborativeEditor = null;
+  window.sendMessage = function() {
+    if (window.collaborativeEditor) {
+      window.collaborativeEditor.sendMessage();
+    }
+  };
+
+  window.clearChatHistory = function() {
+    if (confirm('Are you sure you want to clear the chat history? This action cannot be undone.')) {
+      const messagesContainer = document.getElementById('chatMessages');
+      
+      if (window.collaborativeEditor) {
+        window.collaborativeEditor.showWelcomeMessage();
+        window.collaborativeEditor.messages = [];
+        window.collaborativeEditor.showNotification('Chat history cleared locally', 'info');
+      } else {
+        messagesContainer.innerHTML = `
+          <div class="welcome-message">
+            <div class="text-center text-muted py-4">
+              <i class="bi bi-chat-heart fs-3 mb-2 d-block"></i>
+              <p class="mb-0">Chat history cleared</p>
+              <small>Start a new conversation with your team</small>
+            </div>
+          </div>
+        `;
+      }
+    }
+  };
+
+  window.downloadFile = function() {
+    if (!window.collaborativeEditor?.editor) {
+      alert('Editor not ready yet. Please try again.');
+      return;
+    }
+    
+    const content = window.collaborativeEditor.editor.getValue();
+    const fileName = window.editorConfig?.fileName || 'code.txt';
+    
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
+    
+    window.collaborativeEditor.showNotification(`Downloaded ${fileName}`, 'success');
+  };
+
+  window.refreshEditor = function() {
+    if (window.collaborativeEditor?.channel) {
+      window.collaborativeEditor.updateConnectionStatus('connecting');
+      window.collaborativeEditor.channel.perform('request_fresh_state', {});
+      window.collaborativeEditor.showNotification('Refreshing editor content...', 'info');
+    }
+  };
+
+  // Global function to close conflict modal
+  window.closeConflictModal = function() {
+    const modal = document.getElementById('conflictModal');
+    const modalInstance = bootstrap.Modal.getInstance(modal);
+    if (modalInstance) {
+      modalInstance.hide();
+    }
+  };
+
+  // Handle window beforeunload to warn about unsaved changes
+  window.addEventListener('beforeunload', function(e) {
+    if (window.collaborativeEditor?.hasUnsavedChanges) {
+      e.preventDefault();
+      e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+      return e.returnValue;
+    }
+  });
+
+  // Handle visibility change to manage connection
+  document.addEventListener('visibilitychange', function() {
+    if (window.collaborativeEditor?.channel) {
+      if (document.hidden) {
+        console.log('Editor tab hidden');
+      } else {
+        console.log('Editor tab visible');
+      }
+    }
+  });
+
 </script>
 
 <style>
+  /* Complete CSS for the collaborative editor */
+  :root {
+    --chat-width: 350px;
+    --header-height: 60px;
+    --status-height: 32px;
+    --border-color: #dee2e6;
+    --bg-light: #f8f9fa;
+    --text-muted: #6c757d;
+    --primary-color: #0d6efd;
+    --success-color: #198754;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+  }
+
   .editor-page-wrapper {
     position: relative;
-    width: 100%;
     height: 100vh;
+    background: var(--bg-light);
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
-  
-  #editorContainer {
+
+  /* Chat Toggle Button - moved to bottom right */
+  .chat-toggle-btn-bottom {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1050;
+    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: none;
+    background: var(--primary-color);
+    color: white;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  .chat-toggle-btn-bottom:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    background: #0b5ed7;
+  }
+
+  .chat-toggle-btn-bottom:active {
+    transform: translateY(0);
+  }
+
+  .chat-toggle-btn-bottom .chat-notification-badge {
     position: absolute;
-    top: 56px;
+    top: -2px;
+    right: -2px;
+    font-size: 0.7rem;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+
+  /* Editor Container */
+  .editor-container {
+    position: absolute;
+    top: 0;
     left: 0;
     right: 0;
     bottom: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-    z-index: 1;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: white;
   }
-  
+
+  .editor-container.chat-open {
+    right: var(--chat-width);
+  }
+
+  /* Editor Header */
   .editor-header {
-    background: #2c3e50;
-    color: white;
-    padding: 12px 20px;
+    height: var(--header-height);
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0 20px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     z-index: 10;
     flex-shrink: 0;
   }
-  
+
   .editor-info {
     display: flex;
     align-items: center;
     gap: 20px;
   }
-  
+
   .file-name {
-    font-size: 18px;
-    font-weight: 500;
+    font-size: 16px;
+    font-weight: 600;
+    color: #212529;
     display: flex;
     align-items: center;
   }
-  
+
   .branch-badge {
-    background: #3498db;
+    background: #e3f2fd;
+    color: #1976d2;
     padding: 4px 12px;
-    border-radius: 16px;
-    font-size: 14px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid #bbdefb;
+  }
+
+  .connection-status {
     display: flex;
     align-items: center;
   }
-  
+
   .editor-actions {
     display: flex;
-    gap: 10px;
+    gap: 20px;
     align-items: center;
   }
-  
-  #activeUsers {
+
+  .active-users {
     display: flex;
+    align-items: center;
     gap: 8px;
-    margin-right: 20px;
   }
-  
+
+  .users-list {
+    display: flex;
+    gap: 4px;
+  }
+
   .user-avatar {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
-    font-weight: bold;
+    font-size: 11px;
+    font-weight: 600;
     color: white;
     border: 2px solid white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    position: relative;
   }
-  
-  .btn-action {
+
+  .user-avatar::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 8px;
+    height: 8px;
+    background: var(--success-color);
+    border: 2px solid white;
+    border-radius: 50%;
+  }
+
+  .action-buttons {
     display: flex;
+    gap: 8px;
     align-items: center;
-    gap: 6px;
-    white-space: nowrap;
-    padding: 6px 12px;
-    text-decoration: none;
   }
-  
-  .btn-action i {
-    font-size: 14px;
-  }
-  
+
+  /* Monaco Editor */
   .editor-main {
     flex: 1;
     position: relative;
     overflow: hidden;
   }
-  
+
   #monaco-editor {
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    height: 100%;
-    width: 100%;
+    border: none;
   }
-  
+
+  /* Editor Status Bar */
+  .editor-status-bar {
+    height: var(--status-height);
+    background: var(--bg-light);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 12px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .status-left, .status-right {
+    display: flex;
+    gap: 15px;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  /* Chat Sidebar */
+  .chat-sidebar {
+    position: fixed;
+    top: 0;
+    right: calc(var(--chat-width) * -1);
+    width: var(--chat-width);
+    height: 100vh;
+    background: white;
+    border-left: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1040;
+    box-shadow: -2px 0 20px rgba(0,0,0,0.1);
+  }
+
+  .chat-sidebar.open {
+    right: 0;
+  }
+
+  /* Chat Header */
+  .chat-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-light);
+    flex-shrink: 0;
+  }
+
+  /* Chat Users */
+  .chat-users {
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-light);
+    flex-shrink: 0;
+  }
+
+  .chat-users-header {
+    padding: 8px 16px 4px;
+  }
+
+  .chat-users-list {
+    padding: 0 16px 12px;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+
+  .chat-user-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+
+  .chat-user-item.current-user {
+    background: rgba(13, 110, 253, 0.1);
+    border-radius: 6px;
+    padding: 6px 4px;
+    margin: 2px 0;
+  }
+
+  .chat-user-item.current-user .user-name {
+    font-weight: 600;
+    color: var(--primary-color);
+  }
+
+  .user-avatar-small {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 600;
+    color: white;
+    flex-shrink: 0;
+  }
+
+  .user-name {
+    flex: 1;
+    font-size: 13px;
+    color: #495057;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .user-status {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .user-status.online {
+    background: var(--success-color);
+    box-shadow: 0 0 4px rgba(25, 135, 84, 0.4);
+  }
+
+  /* Chat Messages */
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    scroll-behavior: smooth;
+  }
+
+  .welcome-message {
+    text-align: center;
+    color: var(--text-muted);
+    margin: 20px 0;
+  }
+
+  .message {
+    margin-bottom: 12px;
+    animation: messageSlideIn 0.3s ease-out;
+  }
+
+  @keyframes messageSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .message-content {
+    max-width: 85%;
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 8px 12px;
+    position: relative;
+  }
+
+  .message.own-message .message-content {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+  }
+
+  .message.own-message .message-content::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    right: -6px;
+    width: 0;
+    height: 0;
+    border: 6px solid transparent;
+    border-left-color: var(--primary-color);
+  }
+
+  .message.other-message .message-content::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: -6px;
+    width: 0;
+    height: 0;
+    border: 6px solid transparent;
+    border-right-color: var(--bg-light);
+  }
+
+  .message-header {
+    margin-bottom: 4px;
+  }
+
+  .message-author {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .message.own-message .message-author {
+    color: rgba(255,255,255,0.8);
+  }
+
+  .message-time {
+    font-size: 11px;
+    opacity: 0.7;
+  }
+
+  .message-text {
+    font-size: 14px;
+    line-height: 1.4;
+    word-wrap: break-word;
+  }
+
+  /* Typing Indicator */
+  .typing-indicator {
+    padding: 8px 16px;
+    min-height: 32px;
+    display: flex;
+    align-items: center;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-light);
+    flex-shrink: 0;
+  }
+
+  .typing-dots {
+    display: flex;
+    gap: 2px;
+  }
+
+  .typing-dots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    animation: typing-pulse 1.4s infinite ease-in-out;
+  }
+
+  .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+  .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+  @keyframes typing-pulse {
+    0%, 80%, 100% {
+      transform: scale(0.8);
+      opacity: 0.5;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  /* Chat Input */
+  .chat-input {
+    padding: 16px;
+    border-top: 1px solid var(--border-color);
+    background: white;
+    flex-shrink: 0;
+  }
+
+  .chat-input .form-control {
+    border-radius: 20px;
+    border-right: none;
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+    resize: none;
+  }
+
+  .chat-input .btn {
+    border-radius: 20px;
+    border-left: none;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+  }
+
+  /* Notifications */
   .notifications-container {
     position: fixed;
     top: 80px;
     right: 20px;
     z-index: 1060;
-    max-width: 400px;
-    max-height: 60vh;
-    overflow-y: auto;
+    max-width: 350px;
+    pointer-events: none;
   }
-  
+
   .notifications-container .alert {
-    margin-bottom: 10px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    margin-bottom: 8px;
     border: none;
     border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    pointer-events: auto;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
   }
-  
-  .monaco-user-cursor {
-    border-left: 2px solid;
-    animation: monaco-cursor-blink 1s ease-in-out infinite;
+
+  /* Animations */
+  .spin {
+    animation: spin 1s linear infinite;
   }
-  
-  @keyframes monaco-cursor-blink {
-    0%, 50%, 100% { opacity: 1; }
-    25%, 75% { opacity: 0; }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
   }
-  
-  .monaco-cursor-label {
-    position: absolute;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 2px 6px;
+
+  /* Custom Scrollbars */
+  .chat-messages::-webkit-scrollbar,
+  .chat-users-list::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .chat-messages::-webkit-scrollbar-track,
+  .chat-users-list::-webkit-scrollbar-track {
+    background: var(--bg-light);
+  }
+
+  .chat-messages::-webkit-scrollbar-thumb,
+  .chat-users-list::-webkit-scrollbar-thumb {
+    background: var(--border-color);
     border-radius: 3px;
-    font-size: 11px;
-    margin-left: 2px;
-    white-space: nowrap;
-    z-index: 100;
   }
-  
-  .monaco-user-selection {
-    background-color: rgba(0, 123, 255, 0.1);
+
+  .chat-messages::-webkit-scrollbar-thumb:hover,
+  .chat-users-list::-webkit-scrollbar-thumb:hover {
+    background: #adb5bd;
   }
-  
-  .monaco-selection-label {
-    position: absolute;
-    top: -20px;
-    left: 0;
-    background: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 11px;
-    white-space: nowrap;
+
+  /* Focus states */
+  .btn:focus,
+  .form-control:focus {
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    border-color: #86b7fe;
   }
-  
-  .monaco-conflict-line {
-    background-color: rgba(255, 193, 7, 0.2) !important;
-    border-left: 4px solid #ffc107 !important;
+
+  /* Loading states */
+  .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
-  
-  .monaco-conflict-glyph {
-    background-color: #ffc107 !important;
-    width: 12px !important;
-    height: 12px !important;
-    border-radius: 50%;
-  }
-  
+
+  /* Modal improvements */
   .modal-content {
     border-radius: 12px;
     border: none;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
   }
-  
+
   .modal-header {
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid var(--border-color);
     border-radius: 12px 12px 0 0;
   }
-  
-  .modal-body .btn {
-    border-radius: 8px;
-    padding: 12px 20px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
+
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    :root {
+      --chat-width: 100%;
+      --header-height: auto;
+    }
+
+    .chat-toggle-btn-bottom {
+      bottom: 15px;
+      right: 15px;
+      width: 48px;
+      height: 48px;
+      font-size: 18px;
+    }
+
+    .editor-header {
+      padding: 12px 15px;
+      flex-wrap: wrap;
+      min-height: 60px;
+    }
+
+    .editor-info {
+      gap: 10px;
+      order: 1;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .editor-actions {
+      gap: 10px;
+      order: 2;
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    .active-users {
+      order: 1;
+    }
+
+    .action-buttons {
+      order: 2;
+      gap: 6px;
+    }
+
+    .action-buttons .btn span {
+      display: none;
+    }
+
+    .user-avatar {
+      width: 24px;
+      height: 24px;
+      font-size: 10px;
+    }
+
+    .notifications-container {
+      right: 10px;
+      left: 10px;
+      max-width: none;
+    }
+
+    .chat-sidebar.open {
+      right: 0;
+    }
+
+    .editor-container.chat-open {
+      right: 100%;
+    }
+
+    .status-left, .status-right {
+      gap: 8px;
+    }
+
+    .status-item {
+      font-size: 11px;
+    }
   }
-  
-  .modal-body .btn i {
-    width: 16px;
+
+  @media (max-width: 480px) {
+    .file-name {
+      font-size: 14px;
+    }
+
+    .branch-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+    }
+
+    .editor-status-bar {
+      padding: 0 15px;
+      font-size: 11px;
+    }
+
+    .chat-input {
+      padding: 12px;
+    }
+  }
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    .chat-sidebar {
+      border-left: 2px solid var(--border-color);
+    }
+
+    .user-avatar {
+      border: 2px solid #000;
+    }
+
+    .message-content {
+      border: 2px solid var(--border-color);
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    .chat-sidebar,
+    .editor-container,
+    .chat-toggle-btn-bottom,
+    .message {
+      transition: none;
+      animation: none;
+    }
+
+    .typing-dots span {
+      animation: none;
+    }
+
+    .chat-notification-badge {
+      animation: none;
+    }
   }
 </style>
