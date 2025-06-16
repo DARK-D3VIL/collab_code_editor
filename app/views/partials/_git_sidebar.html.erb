@@ -1,0 +1,82 @@
+<nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse border-end">
+  <div class="position-sticky p-4">
+    <h5 class="fw-bold text-primary mb-4">Project</h5>
+    <ul class="nav flex-column">
+      <!-- Main Project Navigation -->
+      <% if controller_name.in?(%w[project_files project_git project_members github]) && defined?(@project) %>
+        <li class="nav-item mb-2">
+          <%= link_to project_project_files_path(@project, path: ""), class: "nav-link d-flex align-items-center #{controller_name == 'project_files' ? 'active bg-light fw-semibold text-dark' : 'text-muted'}" do %>
+            <i class="bi bi-folder2-open me-2"></i> Files
+          <% end %>
+        </li>
+        
+        <!-- Version Control Parent Item -->
+        <li class="nav-item mb-1">
+          <%= link_to project_git_path(@project), class: "nav-link d-flex align-items-center #{controller_name == 'project_git' ? 'active bg-light fw-semibold text-dark' : 'text-muted'}" do %>
+            <i class="bi bi-git me-2"></i> Version Control
+            <% if controller_name == 'project_git' %>
+              <i class="bi bi-chevron-down ms-auto small"></i>
+            <% else %>
+              <i class="bi bi-chevron-right ms-auto small"></i>
+            <% end %>
+          <% end %>
+        </li>
+
+        <!-- Git Panel Sub-navigation (only show when in git controller) -->
+        <% if controller_name.in?(%w[project_git github]) %>
+          <li class="nav-item">
+            <ul class="nav flex-column border-start border-2 border-light ms-3 ps-2">
+              <li class="nav-item mb-1">
+                <%= link_to project_git_path(@project), class: "#{sidebar_link_class('show')} nav-link d-flex align-items-center py-2 small" do %>
+                  <i class="bi bi-clock-history me-2 text-muted" style="font-size: 0.9rem;"></i> 
+                  <span>History</span>
+                <% end %>
+              </li>
+              <li class="nav-item mb-1">
+                <%= link_to project_git_branches_path(@project), class: "#{sidebar_link_class('branches')} nav-link d-flex align-items-center py-2 small" do %>
+                  <i class="bi bi-diagram-2 me-2 text-muted" style="font-size: 0.9rem;"></i> 
+                  <span>Branches</span>
+                <% end %>
+              </li>
+              <li class="nav-item mb-1">
+                <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: "#{sidebar_link_class('commits')} nav-link d-flex align-items-center py-2 small" do %>
+                  <i class="bi bi-list-ol me-2 text-muted" style="font-size: 0.9rem;"></i> 
+                  <span>Commits</span>
+                <% end %>
+              </li>
+              <li class="nav-item mb-1">
+                <% 
+                  # Check if we're on the sync page by URL path or controller/action
+                  is_sync_active = request.path.include?('/sync') || 
+                                   (controller_name == 'github' && action_name == 'sync') ||
+                                   sidebar_link_class('sync').include?('active')
+                  sync_classes = is_sync_active ? 'nav-link d-flex align-items-center position-relative py-2 small active bg-light fw-semibold text-dark' : 'nav-link d-flex align-items-center position-relative py-2 small text-muted'
+                %>
+                <%= link_to github_project_sync_path(@project), class: sync_classes do %>
+                  <i class="bi bi-github me-2 text-muted" style="font-size: 0.9rem;"></i> 
+                  <span>Sync</span>
+                  <% if !github_token_valid? %>
+                    <span class="badge bg-warning ms-auto" style="font-size: 0.55rem;">!</span>
+                  <% elsif @project&.github_url.blank? %>
+                    <span class="badge bg-info ms-auto" style="font-size: 0.55rem;">Link</span>
+                  <% else %>
+                    <span class="badge bg-success ms-auto" style="font-size: 0.55rem;">✓</span>
+                  <% end %>
+                <% end %>
+              </li>
+            </ul>
+          </li>
+        <% end %>
+
+        <!-- Members Section -->
+        <% if current_user == @project.owner %>
+          <li class="nav-item mb-2 mt-2">
+            <%= link_to project_project_members_path(@project), class: "nav-link d-flex align-items-center #{controller_name == 'project_members' ? 'active bg-light fw-semibold text-dark' : 'text-muted'}" do %>
+              <i class="bi bi-people me-2"></i> Members
+            <% end %>
+          </li>
+        <% end %>
+      <% end %>
+    </ul>
+  </div>
+</nav>

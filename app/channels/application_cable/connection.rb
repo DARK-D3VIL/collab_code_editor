@@ -1,3 +1,4 @@
+# app/channels/application_cable/connection.rb
 module ApplicationCable
   class Connection < ActionCable::Connection::Base
     identified_by :current_user
@@ -9,8 +10,8 @@ module ApplicationCable
     private
 
     def find_verified_user
-      if (user_id = cookies.encrypted[:user_id])
-        User.find_by(id: user_id) || reject_unauthorized_connection
+      if verified_user = env['warden'].user
+        verified_user
       else
         reject_unauthorized_connection
       end

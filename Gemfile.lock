@@ -394,6 +394,7 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
+  actioncable (~> 7.0)
   annotate
   bootsnap
   bootstrap

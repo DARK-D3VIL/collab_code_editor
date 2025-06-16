@@ -17,14 +17,15 @@ Rails.application.routes.draw do
   # root "posts#index"
   root to: "projects#index"
 
-  resources :conflicts, only: [] do
+resources :conflicts, only: [ :index, :show, :destroy ] do
     member do
       post :resolve
-      post :ignore
+      delete :ignore
     end
 
     collection do
-      get :panel
+      get :file_conflicts
+      post :bulk_resolve
     end
   end
 

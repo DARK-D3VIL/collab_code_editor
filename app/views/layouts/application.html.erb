@@ -44,20 +44,6 @@
               <li class="nav-item">
                 <%= link_to "Projects", projects_path, class: "nav-link #{current_page?(projects_path) ? 'fw-semibold text-dark' : 'text-muted'}" %>
               </li>
-
-              <% if controller_name.in?(%w[project_files project_git project_members]) && defined?(@project) %>
-                <li class="nav-item">
-                  <%= link_to "Files", project_project_files_path(@project, path: ""), class: "nav-link #{controller_name == 'project_files' ? 'fw-semibold text-dark' : 'text-muted'}" %>
-                </li>
-                <li class="nav-item">
-                  <%= link_to "Version Control", project_git_path(@project), class: "nav-link #{controller_name == 'project_git' ? 'fw-semibold text-dark' : 'text-muted'}" %>
-                </li>
-                <% if current_user == @project.owner %>
-                  <li class="nav-item">
-                    <%= link_to "Members", project_project_members_path(@project), class: "nav-link #{controller_name == 'project_members' ? 'fw-semibold text-dark' : 'text-muted'}" %>
-                  </li>
-                <% end %>
-              <% end %>
             <% end %>
           </ul>
 
@@ -142,21 +128,23 @@
     </nav>
 
     <!-- Flash Alerts -->
-    <div class="container mt-3">
+    <div style="position: fixed; top: 1rem; right: 1rem; z-index: 1050;">
       <% flash.each do |type, message| %>
         <% alert_class = case type.to_sym
             when :notice then 'alert-success'
             when :alert  then 'alert-danger'
             else "alert-info"
           end %>
-        <div class="alert <%= alert_class %> alert-dismissible fade show auto-dismiss" role="alert">
+        <div class="alert <%= alert_class %> alert-dismissible fade show auto-dismiss shadow" role="alert">
           <%= message %>
           <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
       <% end %>
     </div>
 
-    <%= yield %>
+    <div style="padding-top: 1.5rem;">
+      <%= yield %>
+    </div
 
     <!-- Client-side Search Script -->
     <script>

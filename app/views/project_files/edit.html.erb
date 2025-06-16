@@ -1,517 +1,1397 @@
-<div class="editor-container" style="height: 100vh; display: flex; flex-direction: column; background-color: #f8f9fa;">
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center px-3 py-2 bg-white shadow-sm border-bottom sticky-top" style="z-index: 100;">
-    <h5 class="mb-0">
-      📝 Editing: <strong><%= @file_name %></strong>
-      <span class="text-muted">(<%= @language.capitalize %>)</span>
-      <span class="badge bg-secondary">Branch: <%= @branch_name %></span>
-    </h5>
-    <div class="d-flex gap-2">
-      <button id="saveBtn" class="btn btn-outline-success">💾 Save</button>
-      <button id="commitBtn" class="btn btn-outline-primary">✅ Commit</button>
-      <button id="exitBtn" class="btn btn-outline-danger">🚪 Exit</button>
+<div class="editor-page-wrapper">
+  <!-- Editor container that will be positioned absolutely -->
+  <div id="editorContainer">
+    <!-- Header -->
+    <div class="editor-header">
+      <div class="editor-info">
+        <span class="file-name">
+          <i class="fas fa-file-code me-2"></i>
+          <%= @file_name %>
+        </span>
+        <span class="branch-badge">
+          <i class="fas fa-code-branch me-1"></i>
+          <%= @branch_name %>
+        </span>
+      </div>
+      
+      <div class="editor-actions">
+        <div id="activeUsers"></div>
+        
+        <button id="saveBtn" class="btn btn-success btn-sm btn-action" <%= 'disabled' unless @can_edit %>>
+          <i class="fas fa-save"></i>
+          <span>Save</span>
+        </button>
+        
+        <button id="commitBtn" class="btn btn-primary btn-sm btn-action" <%= 'disabled' unless @can_edit %>>
+          <i class="fas fa-check"></i>
+          <span>Commit</span>
+        </button>
+        
+        <%= link_to project_project_files_path(@project, path: @current_path), class: "btn btn-outline-light btn-sm btn-action" do %>
+          <i class="fas fa-times"></i>
+          <span>Exit</span>
+        <% end %>
+      </div>
+    </div>
+    
+    <!-- Main Editor -->
+    <div class="editor-main">
+      <div id="monaco-editor"></div>
     </div>
   </div>
 
-  <!-- Notifications Area -->
-  <div id="notifications" class="notifications-container px-3 pt-2" style="min-height: 0;">
-    <!-- Dynamic notifications will be inserted here -->
-  </div>
+  <!-- Notifications Container -->
+  <div id="notifications" class="notifications-container"></div>
 
-  <!-- Editor and Conflict Panel -->
-  <div class="d-flex flex-grow-1">
-    <div id="editor" class="flex-grow-1" style="height: 100%; border-right: 1px solid #ccc;"></div>
-
-    <!-- Conflict Panel -->
-    <div id="editor_conflicts" class="bg-light p-3" style="width: 30%; overflow-y: auto;">
-      <h5>Conflicts</h5>
-      <%= turbo_frame_tag "editor_conflicts" do %>
-        <div id="conflicts-list">
-          <%= render partial: "conflicts/conflict", collection: @conflicts, as: :conflict %>
+  <!-- Conflict Modal -->
+  <div class="modal fade" id="conflictModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">
+            <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+            Conflict Detected
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
-      <% end %>
+        <div class="modal-body" id="conflictModalBody">
+          <!-- Content will be inserted dynamically -->
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<%= javascript_importmap_tags %>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
-
-<script type="module">
-  import { createConsumer } from "@rails/actioncable";
-
-  const projectId = <%= @project.id %>;
-  const fileName = "<%= @file_name %>";
-  const initialContent = `<%= raw @file_content %>`;
-  const language = "<%= @language %>";
-  const branchName = "<%= @branch_name %>";
-  const currentPath = "<%= @file_path %>";
-
-  const saveUrl = `/projects/${projectId}/files/${encodeURIComponent(fileName)}/save?path=${encodeURIComponent(currentPath)}`;
-  const commitUrl = `/projects/${projectId}/files/${encodeURIComponent(fileName)}/commit?path=${encodeURIComponent(currentPath)}`;
-  const redirectUrl = `/projects/${projectId}/files?path=${encodeURIComponent(currentPath)}`;
-
-  let editor;
-  let lastContent = initialContent;
-  let isApplyingRemoteUpdate = false;
-
-  // Utility function to show notifications
-  function showNotification(message, type = 'info') {
-    const notificationsContainer = document.getElementById('notifications');
-    const alertClass = type === 'error' ? 'alert-danger' : 
-                      type === 'success' ? 'alert-success' : 
-                      type === 'warning' ? 'alert-warning' : 'alert-info';
-    
-    const notification = document.createElement('div');
-    notification.className = `alert ${alertClass} alert-dismissible fade show`;
-    notification.setAttribute('role', 'alert');
-    notification.innerHTML = `
-      ${message}
-      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    `;
-    
-    notificationsContainer.appendChild(notification);
-    
-    // Auto-remove after 5 seconds
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.remove();
+<!-- Script to override main container styling -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const editorWrapper = document.querySelector('.editor-page-wrapper');
+    if (editorWrapper) {
+      const parentContainer = editorWrapper.closest('.container, .container-fluid');
+      if (parentContainer) {
+        parentContainer.style.maxWidth = '100%';
+        parentContainer.style.padding = '0';
+        parentContainer.style.margin = '0';
+        parentContainer.style.height = 'auto';
+        parentContainer.style.overflow = 'visible';
       }
-    }, 5000);
-  }
-
-  require.config({ paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" } });
-
-  require(["vs/editor/editor.main"], function () {
-    editor = monaco.editor.create(document.getElementById("editor"), {
-      value: initialContent,
-      language: language,
-      automaticLayout: true,
-      theme: "vs",
-      fontSize: 14,
-      minimap: { enabled: false },
-      wordWrap: "on",
-      padding: { top: 10, bottom: 10 }
-    });
-
-    const consumer = createConsumer();
-    
-    const channel = consumer.subscriptions.create(
-      {
-        channel: "EditorChannel",
-        project_id: projectId,
-        file_id: fileName,
-        branch: branchName
-      },
-      {
-        received(data) {
-          console.log('Received data:', data);
-          
-          // Handle conflict resolution broadcasts
-          if (data.type === "conflict_resolution") {
-            console.log('Received conflict resolution:', data.action);
-            
-            // Always update the editor content with the resolved content
-            if (!isApplyingRemoteUpdate) {
-              isApplyingRemoteUpdate = true;
-              
-              const currentPosition = editor.getPosition();
-              editor.setValue(data.content);
-              editor.setPosition(currentPosition);
-              
-              lastContent = data.content;
-              
-              // Show notification about the resolution
-              const message = data.action === "accept" 
-                ? "✅ Conflict resolved - incoming changes were accepted"
-                : "✅ Conflict ignored - original content was kept";
-              showNotification(message, 'info');
-              
-              setTimeout(() => (isApplyingRemoteUpdate = false), 100);
-            }
-            
-            // Refresh the conflicts panel to remove resolved conflicts
-            refreshConflictsPanel();
-            return;
-          }
-          
-          // Handle live content sync for newly joined users
-          if (data.type === "live_content_sync") {
-            console.log('Received live content sync');
-            if (data.content !== editor.getValue() && !isApplyingRemoteUpdate) {
-              isApplyingRemoteUpdate = true;
-              
-              const currentPosition = editor.getPosition();
-              editor.setValue(data.content);
-              editor.setPosition(currentPosition);
-              
-              lastContent = data.content;
-              showNotification('Synced with live content from other editors', 'info');
-              setTimeout(() => (isApplyingRemoteUpdate = false), 100);
-            }
-            return;
-          }
-          
-          // Handle conflict notifications
-          if (data.conflict) {
-            // Conflict notification for current user
-            showNotification(`🔴 Conflict detected on lines: ${data.lines_changed.join(', ')}`, 'warning');
-            
-            // Refresh the conflicts panel
-            refreshConflictsPanel();
-            return;
-          }
-          
-          // Handle regular content updates from other users
-          if (data.sender_id !== undefined && data.content !== editor.getValue() && !isApplyingRemoteUpdate) {
-            isApplyingRemoteUpdate = true;
-            
-            const currentPosition = editor.getPosition();
-            editor.setValue(data.content);
-            editor.setPosition(currentPosition);
-            
-            lastContent = data.content;
-            setTimeout(() => (isApplyingRemoteUpdate = false), 100);
-          }
-        },
-        
-        connected() {
-          console.log('Connected to EditorChannel');
-          showNotification('Connected to collaborative editor', 'success');
-          
-          // Set initial content as the baseline for new sessions
-          lastContent = editor.getValue();
-        },
-        
-        disconnected() {
-          console.log('Disconnected from EditorChannel');
-          showNotification('Disconnected from collaborative editor', 'warning');
-        }
-      }
-    );
-
-    // Function to refresh conflicts panel
-    function refreshConflictsPanel() {
-      fetch(`/conflicts/panel?file_id=${fileName}&branch=${branchName}&project_id=${projectId}`)
-        .then(resp => resp.text())
-        .then(html => {
-          const conflictsList = document.getElementById("conflicts-list");
-          if (conflictsList) {
-            conflictsList.innerHTML = html;
-          }
-        })
-        .catch(err => {
-          console.error('Error refreshing conflicts panel:', err);
-          showNotification('Error refreshing conflicts panel', 'error');
-        });
     }
-
-    // Handle conflict resolution form submissions
-    document.addEventListener('click', (event) => {
-      // Handle resolve conflict button
-      if (event.target.matches('input[value="Resolve (Accept Changes)"]')) {
-        event.preventDefault();
-        const form = event.target.closest('form');
-        if (form) {
-          handleConflictResolution(form, 'resolve');
-        }
-      }
-      
-      // Handle ignore conflict button
-      if (event.target.matches('input[value="Ignore (Keep Original)"]')) {
-        event.preventDefault();
-        const form = event.target.closest('form');
-        if (form) {
-          handleConflictResolution(form, 'ignore');
-        }
-      }
-    });
-
-    // Function to handle conflict resolution
-    function handleConflictResolution(form, action) {
-      const button = form.querySelector(`input[value*="${action === 'resolve' ? 'Accept' : 'Keep'}"]`);
-      const originalValue = button.value;
-      
-      button.value = 'Processing...';
-      button.disabled = true;
-      
-      const formData = new FormData(form);
-      const url = form.action;
-      
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'X-CSRF-Token': document.querySelector('meta[name="csrf-token"]').content,
-          'Accept': 'application/json'
-        },
-        body: formData
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === 'resolved' || data.status === 'ignored') {
-          // Show success notification
-          showNotification(data.message, 'success');
-          
-          // Update editor content immediately if provided
-          if (data.content && data.content !== editor.getValue()) {
-            isApplyingRemoteUpdate = true;
-            const currentPosition = editor.getPosition();
-            editor.setValue(data.content);
-            editor.setPosition(currentPosition);
-            lastContent = data.content;
-            setTimeout(() => (isApplyingRemoteUpdate = false), 100);
-          }
-          
-          // Remove the conflict from UI
-          const conflictElement = form.closest('.conflict-item');
-          if (conflictElement) {
-            conflictElement.remove();
-          }
-          
-          // Refresh conflicts panel to ensure it's up to date
-          refreshConflictsPanel();
-        } else {
-          showNotification(data.message || 'Error processing conflict', 'error');
-        }
-      })
-      .catch(error => {
-        console.error('Error resolving conflict:', error);
-        showNotification('Network error while processing conflict', 'error');
-      })
-      .finally(() => {
-        button.value = originalValue;
-        button.disabled = false;
-      });
-    }
-
-    // Enhanced change tracking with better conflict detection
-    let debounceTimer;
-    editor.onDidChangeModelContent(() => {
-      if (isApplyingRemoteUpdate) return;
-
-      const newContent = editor.getValue();
-      const baseLines = lastContent.split("\n");
-      const newLines = newContent.split("\n");
-
-      const changed_lines = {};
-      const maxLines = Math.max(baseLines.length, newLines.length);
-      
-      for (let i = 0; i < maxLines; i++) {
-        const baseLine = baseLines[i] || "";
-        const newLine = newLines[i] || "";
-        
-        if (baseLine !== newLine) {
-          changed_lines[i + 1] = newLine;
-        }
-      }
-
-      lastContent = newContent;
-
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        if (Object.keys(changed_lines).length > 0) {
-          channel.send({
-            content: newContent,
-            base_content: baseLines.join("\n"),
-            changed_lines: changed_lines
-          });
-        }
-      }, 300);
-    });
-
-    function saveContent(callback) {
-      const content = editor.getValue();
-      const path = new URLSearchParams(window.location.search).get("path");
-      const fileName = window.location.pathname.split("/").slice(-2)[0];
-      const projectId = window.location.pathname.split("/")[2];
-
-      fetch(`/projects/${projectId}/files/${fileName}/save`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
-        },
-        body: JSON.stringify({
-          content: content,
-          path: path
-        })
-      })
-      .then(resp => resp.json())
-      .then(data => {
-        if (data.status === "success") {
-          callback();
-        } else {
-          showNotification(`Save failed: ${data.message}`, 'error');
-        }
-      })
-      .catch(err => {
-        console.error('Save error:', err);
-        showNotification('Save failed due to network error', 'error');
-      });
-    }
-
-    // Save Button
-    document.getElementById("saveBtn").addEventListener("click", () => {
-      const saveButton = document.getElementById("saveBtn");
-      const originalText = saveButton.innerHTML;
-      saveButton.innerHTML = "💾 Saving...";
-      saveButton.disabled = true;
-
-      const content = editor.getValue();
-      const path = new URLSearchParams(window.location.search).get("path");
-      const fileName = "<%= @file_name %>";
-      const projectId = "<%= @project.id %>";
-
-      fetch(`/projects/${projectId}/files/${fileName}/save`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
-        },
-        body: JSON.stringify({
-          content: content,
-          path: path
-        })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.status === "success") {
-          showNotification('File saved successfully!', 'success');
-          setTimeout(() => {
-            window.location.href = redirectUrl;
-          }, 1500);
-        } else {
-          showNotification(`Error: ${data.message}`, 'error');
-        }
-      })
-      .catch(err => {
-        console.error('Save error:', err);
-        showNotification('Save failed due to network error', 'error');
-      })
-      .finally(() => {
-        saveButton.innerHTML = originalText;
-        saveButton.disabled = false;
-      });
-    });
-
-    // Commit Button
-    document.getElementById("commitBtn").addEventListener("click", () => {
-      const message = prompt("Enter commit message:");
-      if (!message) return;
-
-      const commitButton = document.getElementById("commitBtn");
-      const originalText = commitButton.innerHTML;
-      commitButton.innerHTML = "✅ Committing...";
-      commitButton.disabled = true;
-
-      const path = new URLSearchParams(window.location.search).get("path");
-
-      saveContent(() => {
-        fetch(commitUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
-          },
-          body: JSON.stringify({ message, path })
-        })
-        .then(resp => resp.json())
-        .then(data => {
-          if (data.status === "success") {
-            showNotification('Commit successful!', 'success');
-            setTimeout(() => {
-              window.location.href = redirectUrl;
-            }, 1500);
-          } else {
-            showNotification(`Commit failed: ${data.message}`, 'error');
-          }
-        })
-        .catch(err => {
-          console.error('Commit error:', err);
-          showNotification('Commit failed due to network error', 'error');
-        })
-        .finally(() => {
-          commitButton.innerHTML = originalText;
-          commitButton.disabled = false;
-        });
-      });
-    });
-
-    // Exit Button
-    document.getElementById("exitBtn").addEventListener("click", () => {
-      if (confirm("Exit without saving?")) {
-        window.location.href = redirectUrl;
-      }
-    });
-
-    // Initialize conflicts panel on page load
-    refreshConflictsPanel();
   });
 </script>
 
+<!-- Monaco Editor -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+<!-- ActionCable and Editor -->
+<script type="module">
+  import { createConsumer } from 'https://ga.jspm.io/npm:@rails/actioncable@8.0.200/app/assets/javascripts/actioncable.esm.js';
+  
+  window.ActionCable = { createConsumer };
+  initializeEditor();
+  
+  function initializeEditor() {
+    window.editorConfig = {
+      projectId: <%= @project.id %>,
+      fileId: '<%= File.join(@current_path.to_s, @file_name).gsub(/^\//, '') %>',
+      fileName: '<%= @file_name %>',
+      branch: '<%= @branch_name %>',
+      language: '<%= @language %>',
+      initialContent: <%= (@file_content || '').to_json.html_safe %>,
+      userId: <%= current_user.id %>,
+      userName: '<%= current_user.username || current_user.email %>',
+      canEdit: <%= @can_edit ? 'true' : 'false' %>,
+      savePath: '<%= save_project_project_file_path(@project, @file_name, path: @current_path) %>',
+      commitPath: '<%= commit_project_project_file_path(@project, @file_name, path: @current_path) %>'
+    };
+    
+    console.log('Editor config:', window.editorConfig);
+    
+    window.monacoInitialized = false;
+    window.editorInitialized = false;
+    
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadMonaco);
+    } else {
+      loadMonaco();
+    }
+  }
+  
+  function loadMonaco() {
+    if (window.monacoInitialized) {
+      console.log('Monaco already initialized, skipping...');
+      return;
+    }
+    
+    adjustEditorSize();
+    window.addEventListener('resize', adjustEditorSize);
+    
+    if (typeof require !== 'undefined') {
+      require.config({ 
+        paths: { 
+          vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' 
+        }
+      });
+      
+      require(['vs/editor/editor.main'], function() {
+        console.log('Monaco loaded, initializing collaborative editor...');
+        window.monacoInitialized = true;
+        
+        setTimeout(() => {
+          initializeCollaborativeEditor();
+        }, 100);
+      });
+    } else {
+      console.error('RequireJS not available');
+      setTimeout(initBasicEditor, 1000);
+    }
+  }
+  
+  function initializeCollaborativeEditor() {
+    if (window.editorInitialized) {
+      console.log('Editor already initialized');
+      return;
+    }
+    
+    try {
+      window.App = window.App || {};
+      window.App.cable = window.ActionCable.createConsumer();
+      
+      window.collaborativeEditor = new CollaborativeEditor({
+        ...window.editorConfig,
+        editorElementId: 'monaco-editor',
+        notificationsElementId: 'notifications'
+      });
+      
+      window.editorInitialized = true;
+      console.log('Collaborative editor initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize collaborative editor:', error);
+      initBasicEditor();
+    }
+  }
+  
+  function adjustEditorSize() {
+    const navbarHeight = 56;
+    const editorContainer = document.getElementById('editorContainer');
+    
+    if (editorContainer) {
+      editorContainer.style.top = navbarHeight + 'px';
+      editorContainer.style.height = `calc(100vh - ${navbarHeight}px)`;
+    }
+  }
+  
+  function initBasicEditor() {
+    if (window.editorInitialized) return;
+    
+    console.log('Initializing basic Monaco editor as fallback...');
+    
+    const editorElement = document.getElementById('monaco-editor');
+    if (!editorElement) {
+      console.error('Editor element not found!');
+      return;
+    }
+    
+    try {
+      const editor = window.monaco.editor.create(editorElement, {
+        value: window.editorConfig.initialContent,
+        language: window.editorConfig.language,
+        theme: 'vs-dark',
+        automaticLayout: true,
+        readOnly: window.editorConfig.canEdit !== 'true'
+      });
+      
+      window.editorInitialized = true;
+      
+      const saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', function() {
+          if (window.editorConfig.canEdit !== 'true') return;
+          
+          const btn = this;
+          btn.disabled = true;
+          btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+          
+          fetch(window.editorConfig.savePath, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+            },
+            body: new URLSearchParams({
+              content: editor.getValue()
+            })
+          }).then(response => {
+            if (response.ok) {
+              showEditorNotification('File saved', 'success');
+            } else {
+              showEditorNotification('Failed to save file', 'error');
+            }
+          }).catch(error => {
+            showEditorNotification('Error saving file', 'error');
+          }).finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-save me-2"></i>Save';
+          });
+        });
+      }
+      
+      console.log('Basic editor initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize basic editor:', error);
+    }
+  }
+  
+  function showEditorNotification(message, type) {
+    const container = document.getElementById('notifications');
+    if (!container) {
+      console.warn('Notifications container not found');
+      return;
+    }
+    
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+    alert.innerHTML = `
+      ${message}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    container.appendChild(alert);
+    setTimeout(() => {
+      if (alert.parentNode) {
+        alert.remove();
+      }
+    }, 3000);
+  }
+
+  class CollaborativeEditor {
+    constructor(config) {
+      this.config = config;
+      this.config.fileId = this.config.fileId.replace(/^\//, '');
+      
+      this.editor = null;
+      this.channel = null;
+      this.users = new Map();
+      this.decorations = new Map();
+      this.isRemoteUpdate = false;
+      this.lastContent = '';
+      this.cursors = new Map();
+      this.lastChangeTime = 0;
+      this.currentConflictId = null;
+      this.conflictTimeouts = new Map(); // Track conflict timeouts
+      this.recentChanges = new Map(); // Track recent changes by line
+      
+      this.initialize();
+    }
+
+    async initialize() {
+      console.log('Initializing CollaborativeEditor...');
+      this.createEditor();
+      this.setupChannel();
+      this.setupUIHandlers();
+      this.setupConflictDetection();
+    }
+    
+    setupConflictDetection() {
+      // Clear old change tracking every 10 seconds
+      setInterval(() => {
+        const now = Date.now();
+        for (const [line, timestamp] of this.recentChanges.entries()) {
+          if (now - timestamp > 10000) { // 10 seconds
+            this.recentChanges.delete(line);
+          }
+        }
+      }, 5000);
+    }
+    
+    createEditor() {
+      console.log('Creating Monaco editor...');
+      
+      const elementId = this.config.editorElementId || 'monaco-editor';
+      const editorElement = document.getElementById(elementId);
+      
+      if (!editorElement) {
+        console.error(`Editor element with ID '${elementId}' not found!`);
+        return;
+      }
+      
+      if (typeof monaco === 'undefined') {
+        console.error('Monaco editor not loaded yet');
+        throw new Error('Monaco editor not available');
+      }
+      
+      try {
+        const initialContent = this.config.initialContent || '';
+        console.log('Creating editor with initial content length:', initialContent.length);
+        
+        this.editor = monaco.editor.create(editorElement, {
+          value: initialContent,
+          language: this.config.language || 'javascript',
+          theme: 'vs-dark',
+          automaticLayout: true,
+          fontSize: 14,
+          minimap: { enabled: true },
+          wordWrap: 'on',
+          readOnly: this.config.canEdit === 'false' || this.config.canEdit === false
+        });
+
+        this.lastContent = initialContent;
+        this.setupEditorHandlers();
+        
+        console.log('Editor created successfully');
+        
+        if (!this.config.canEdit || this.config.canEdit === 'false') {
+          this.editor.updateOptions({ readOnly: true });
+          this.showNotification('Read-only mode - you don\'t have write permission', 'info');
+        }
+      } catch (error) {
+        console.error('Failed to create Monaco editor:', error);
+        throw error;
+      }
+    }
+
+    setupEditorHandlers() {
+      this.editor.onDidChangeModelContent((e) => {
+        if (this.isRemoteUpdate) return;
+        if (!this.config.canEdit || this.config.canEdit === 'false') return;
+        
+        const content = this.editor.getValue();
+        const changes = this.detectChanges(e);
+        
+        console.log('Content changed:', changes);
+        
+        // Track recent changes for conflict detection
+        const now = Date.now();
+        changes.lines.forEach(line => {
+          this.recentChanges.set(line, now);
+        });
+        
+        this.lastChangeTime = now;
+        
+        clearTimeout(this.updateTimeout);
+        this.updateTimeout = setTimeout(() => {
+          this.sendContentUpdate(content, changes);
+        }, 200);
+      });
+
+      this.editor.onDidChangeCursorPosition((e) => {
+        if (this.isRemoteUpdate) return;
+        
+        clearTimeout(this.cursorTimeout);
+        this.cursorTimeout = setTimeout(() => {
+          this.sendCursorUpdate(e.position);
+        }, 100);
+      });
+
+      this.editor.onDidChangeCursorSelection((e) => {
+        if (this.isRemoteUpdate) return;
+        
+        const selection = e.selection;
+        if (!selection.isEmpty()) {
+          this.sendSelectionUpdate(selection);
+        }
+      });
+    }
+
+    detectChanges(event) {
+      const changes = event.changes;
+      const affectedLines = new Set();
+      
+      changes.forEach(change => {
+        const startLine = change.range.startLineNumber;
+        const endLine = change.range.endLineNumber;
+        
+        if (change.text.includes('\n')) {
+          const insertedLines = change.text.split('\n').length - 1;
+          for (let i = startLine; i <= endLine + insertedLines; i++) {
+            affectedLines.add(i);
+          }
+        } else {
+          for (let i = startLine; i <= endLine; i++) {
+            affectedLines.add(i);
+          }
+        }
+      });
+      
+      return {
+        lines: Array.from(affectedLines),
+        operations: changes.map(c => ({
+          range: c.range,
+          text: c.text,
+          rangeLength: c.rangeLength
+        })),
+        timestamp: Date.now()
+      };
+    }
+
+    setupChannel() {
+      console.log('Setting up ActionCable channel...');
+      
+      if (!window.App || !window.App.cable) {
+        console.error('ActionCable not available');
+        return;
+      }
+
+      this.channel = window.App.cable.subscriptions.create(
+        {
+          channel: 'EditorChannel',
+          project_id: this.config.projectId,
+          file_id: this.config.fileId,
+          branch: this.config.branch
+        },
+        {
+          connected: () => {
+            console.log('Connected to editor channel');
+            this.showNotification('Connected to collaborative session', 'success');
+          },
+
+          disconnected: () => {
+            console.log('Disconnected from editor channel');
+            this.showNotification('Disconnected from collaborative session', 'warning');
+          },
+
+          received: (data) => {
+            console.log('Received message:', data.type, data);
+            this.handleMessage(data);
+          }
+        }
+      );
+      
+      window.testEditorChannel = () => {
+        if (this.channel) {
+          console.log('Channel exists, testing connection...');
+          this.channel.perform('test_connection', { message: 'test' });
+        } else {
+          console.error('No channel available');
+        }
+      };
+      
+      window.debugResolveConflict = (conflictId, action) => {
+        console.log(`Testing conflict resolution: ${conflictId} with action: ${action}`);
+        if (this.channel) {
+          this.channel.perform('resolve_conflict', {
+            conflict_id: conflictId.toString(),
+            resolution_action: action
+          });
+        } else {
+          console.error('No channel available');
+        }
+      };
+    }
+
+    handleMessage(data) {
+      // Process all messages, but filter out own messages for certain types
+      if (data.sender_id === this.config.userId && 
+          !['initial_state', 'fresh_state', 'conflict_detected', 'conflict_resolution'].includes(data.type)) {
+        return;
+      }
+      
+      switch (data.type) {
+        case 'initial_state':
+          this.handleInitialState(data);
+          break;
+        case 'fresh_state':
+          this.handleFreshState(data);
+          break;
+        case 'content_update':
+          this.handleContentUpdate(data);
+          break;
+        case 'user_joined':
+          this.handleUserJoined(data);
+          break;
+        case 'user_left':
+          this.handleUserLeft(data);
+          break;
+        case 'cursor_update':
+          this.handleCursorUpdate(data);
+          break;
+        case 'selection_update':
+          this.handleSelectionUpdate(data);
+          break;
+        case 'conflict_detected':
+          this.handleConflictDetected(data);
+          break;
+        case 'conflict_created':
+          this.handleConflictCreated(data);
+          break;
+        case 'conflict_resolution':
+          this.handleConflictResolution(data);
+          break;
+        case 'test_response':
+          console.log('Test response received:', data);
+          break;
+      }
+    }
+
+    handleInitialState(data) {
+      console.log('Handling initial state with content length:', data.content?.length || 0);
+      
+      if (data.content !== this.editor.getValue()) {
+        this.isRemoteUpdate = true;
+        this.editor.setValue(data.content || '');
+        this.lastContent = data.content || '';
+        this.isRemoteUpdate = false;
+      }
+      
+      data.users.forEach(user => {
+        if (user.id !== this.config.userId) {
+          this.users.set(user.id, user);
+        }
+      });
+      
+      this.updateUsersList();
+    }
+
+    handleFreshState(data) {
+      console.log('Handling fresh state with content length:', data.content?.length || 0);
+      
+      this.isRemoteUpdate = true;
+      this.editor.setValue(data.content || '');
+      this.lastContent = data.content || '';
+      this.isRemoteUpdate = false;
+      
+      if (data.users) {
+        this.users.clear();
+        data.users.forEach(user => {
+          if (user.id !== this.config.userId) {
+            this.users.set(user.id, user);
+          }
+        });
+        this.updateUsersList();
+      }
+      
+      this.showNotification('Editor refreshed with latest content', 'info');
+    }
+
+    handleContentUpdate(data) {
+      console.log('Handling content update from user', data.user_id);
+      
+      // Check for potential conflicts with recent changes
+      if (data.changes && data.changes.lines) {
+        const conflictingLines = data.changes.lines.filter(line => 
+          this.recentChanges.has(line) && 
+          (Date.now() - this.recentChanges.get(line)) < 5000 // 5 second window
+        );
+        
+        if (conflictingLines.length > 0) {
+          console.log('Potential conflict detected on lines:', conflictingLines);
+          this.handlePotentialConflict(data.user_id, conflictingLines, data.changes);
+        }
+      }
+      
+      this.isRemoteUpdate = true;
+      this.editor.setValue(data.content);
+      this.lastContent = data.content;
+      
+      const user = this.users.get(data.user_id);
+      if (user) {
+        this.showNotification(`${user.name} updated the file`, 'info', 2000);
+      }
+      
+      this.isRemoteUpdate = false;
+    }
+
+    handlePotentialConflict(userId, lines, changes) {
+      const user = this.users.get(userId);
+      const userName = user ? user.name : 'Another user';
+      
+      console.log(`Potential conflict with ${userName} on lines:`, lines);
+      
+      // Show conflict notification and dialog
+      this.showNotification(
+        `⚠️ Conflict: ${userName} edited lines ${lines.join(', ')} that you recently modified`,
+        'warning',
+        0
+      );
+      
+      // Highlight conflict lines
+      this.highlightConflict(lines);
+      
+      // Create a mock conflict data for the dialog
+      const conflictData = {
+        conflict_id: Date.now(), // Generate temporary ID
+        conflicting_user_id: userId,
+        lines: lines,
+        user_changes: changes
+      };
+      
+      this.currentConflictId = conflictData.conflict_id;
+      this.showConflictDialog(conflictData);
+    }
+
+    handleUserJoined(data) {
+      console.log('User joined:', data.user);
+      this.users.set(data.user.id, data.user);
+      this.updateUsersList();
+      this.showNotification(`${data.user.name} joined the session`, 'info');
+    }
+
+    handleUserLeft(data) {
+      const user = this.users.get(data.user_id);
+      if (user) {
+        this.showNotification(`${user.name} left the session`, 'info');
+      }
+      
+      this.users.delete(data.user_id);
+      this.removeCursor(data.user_id);
+      this.updateUsersList();
+    }
+
+    handleCursorUpdate(data) {
+      this.showCursor(data.user_id, data.line, data.column);
+    }
+
+    handleSelectionUpdate(data) {
+      this.showSelection(data.user_id, {
+        startLineNumber: data.start_line,
+        startColumn: data.start_column,
+        endLineNumber: data.end_line,
+        endColumn: data.end_column
+      });
+    }
+
+    handleConflictDetected(data) {
+      console.log('Conflict detected for current user:', data);
+      
+      this.currentConflictId = data.conflict_id;
+      console.log('Stored conflict ID:', this.currentConflictId);
+      
+      const user = this.users.get(data.conflicting_user_id);
+      const userName = user ? user.name : 'Another user';
+      
+      this.showNotification(
+        `⚠️ Conflict: ${userName} edited lines ${data.lines.join(', ')} that you were working on`,
+        'warning',
+        0
+      );
+      
+      this.highlightConflict(data.lines);
+      this.showConflictDialog(data);
+    }
+
+    handleConflictCreated(data) {
+      console.log('Conflict created by current user:', data);
+      this.showNotification('Your changes may conflict with other users\' work', 'info', 4000);
+    }
+
+    handleConflictResolution(data) {
+      console.log('Conflict resolution received:', data);
+      
+      if (data.action === 'accepted') {
+        if (data.content) {
+          console.log('Updating editor with fresh content');
+          this.isRemoteUpdate = true;
+          this.editor.setValue(data.content);
+          this.lastContent = data.content;
+          this.isRemoteUpdate = false;
+          this.showNotification('Conflict resolved - content updated', 'success');
+        } else {
+          console.warn('No content in accepted resolution, refreshing instead');
+          this.refreshEditor();
+          this.showNotification('Conflict resolved - refreshed content', 'success');
+        }
+      } else if (data.action === 'ignored') {
+        if (data.content) {
+          console.log('Restoring content to user version');
+          this.isRemoteUpdate = true;
+          this.editor.setValue(data.content);
+          this.lastContent = data.content;
+          this.isRemoteUpdate = false;
+          this.showNotification('Conflict ignored - your changes preserved', 'success');
+        } else {
+          console.log('Conflict ignored - keeping current content');
+          this.showNotification('Conflict ignored - keeping your changes', 'info');
+        }
+      } else if (data.action === 'error') {
+        this.showNotification(data.message || 'Error resolving conflict', 'danger');
+        console.error('Conflict resolution error:', data);
+      } else {
+        console.warn('Unknown conflict resolution action:', data.action);
+        this.showNotification('Conflict resolution completed', 'info');
+      }
+      
+      this.currentConflictId = null;
+      console.log('Cleared conflict ID and closing modal');
+      this.closeConflictModal();
+    }
+
+    showCursor(userId, line, column) {
+      const user = this.users.get(userId);
+      if (!user) return;
+      
+      const oldDecoration = this.cursors.get(userId);
+      if (oldDecoration) {
+        this.editor.deltaDecorations([oldDecoration], []);
+      }
+      
+      const decoration = this.editor.deltaDecorations([], [{
+        range: new monaco.Range(line, column, line, column),
+        options: {
+          className: `user-cursor user-cursor-${userId}`,
+          beforeContentClassName: 'cursor-label',
+          hoverMessage: { value: `${user.name}'s cursor` }
+        }
+      }]);
+      
+      this.cursors.set(userId, decoration[0]);
+    }
+
+    removeCursor(userId) {
+      const decoration = this.cursors.get(userId);
+      if (decoration) {
+        this.editor.deltaDecorations([decoration], []);
+        this.cursors.delete(userId);
+      }
+    }
+
+    showSelection(userId, range) {
+      const user = this.users.get(userId);
+      if (!user) return;
+      
+      const oldDecoration = this.decorations.get(`selection-${userId}`);
+      if (oldDecoration) {
+        this.editor.deltaDecorations([oldDecoration], []);
+      }
+      
+      const decoration = this.editor.deltaDecorations([], [{
+        range: range,
+        options: {
+          className: `user-selection user-selection-${userId}`,
+          stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+          hoverMessage: { value: `${user.name}'s selection` }
+        }
+      }]);
+      
+      this.decorations.set(`selection-${userId}`, decoration[0]);
+    }
+
+    highlightConflict(lines) {
+      const decorations = lines.map(line => ({
+        range: new monaco.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: true,
+          className: 'conflict-line',
+          glyphMarginClassName: 'conflict-glyph',
+          hoverMessage: { value: 'This line has edit conflicts' }
+        }
+      }));
+      
+      const ids = this.editor.deltaDecorations([], decorations);
+      
+      setTimeout(() => {
+        this.editor.deltaDecorations(ids, []);
+      }, 10000);
+    }
+
+    showConflictDialog(data) {
+      const modal = document.getElementById('conflictModal');
+      const body = document.getElementById('conflictModalBody');
+      
+      if (!modal || !body) {
+        console.warn('Conflict modal elements not found');
+        return;
+      }
+      
+      const user = this.users.get(data.conflicting_user_id);
+      const userName = user ? user.name : 'Another user';
+      
+      body.innerHTML = `
+        <div class="alert alert-warning">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <strong>Edit Conflict Detected</strong>
+        </div>
+        <p><strong>${userName}</strong> edited lines <strong>${data.lines.join(', ')}</strong> that you were working on.</p>
+        <p>You can either accept their changes or ignore this conflict and continue with your version.</p>
+        <hr>
+        <p><strong>What would you like to do?</strong></p>
+        <div class="d-grid gap-2">
+          <button id="acceptChangesBtn" class="btn btn-primary">
+            <i class="fas fa-download me-2"></i>
+            Accept their changes (recommended)
+          </button>
+          <button id="ignoreConflictBtn" class="btn btn-outline-secondary">
+            <i class="fas fa-times me-2"></i>
+            Ignore conflict (keep my version)
+          </button>
+          <button id="refreshEditorBtn" class="btn btn-outline-info">
+            <i class="fas fa-sync me-2"></i>
+            Refresh to see latest version
+          </button>
+        </div>
+      `;
+      
+      const acceptBtn = body.querySelector('#acceptChangesBtn');
+      const ignoreBtn = body.querySelector('#ignoreConflictBtn');
+      const refreshBtn = body.querySelector('#refreshEditorBtn');
+      
+      if (acceptBtn) {
+        acceptBtn.addEventListener('click', () => this.acceptTheirChanges());
+      }
+      
+      if (ignoreBtn) {
+        ignoreBtn.addEventListener('click', () => this.ignoreConflict());
+      }
+      
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', () => this.refreshEditor());
+      }
+      
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        const bsModal = new bootstrap.Modal(modal);
+        bsModal.show();
+      } else {
+        modal.style.display = 'block';
+        modal.classList.add('show');
+        document.body.classList.add('modal-open');
+      }
+    }
+
+    acceptTheirChanges() {
+      console.log('Accepting their changes, conflict ID:', this.currentConflictId);
+      
+      if (this.currentConflictId && this.channel) {
+        console.log('Performing resolve_conflict with accept action');
+        this.channel.perform('resolve_conflict', {
+          conflict_id: this.currentConflictId.toString(),
+          resolution_action: 'accept'
+        });
+        
+        this.showNotification('Accepting their changes...', 'info');
+      } else {
+        console.warn('No current conflict ID, falling back to refresh');
+        this.refreshEditor();
+        this.closeConflictModal();
+        this.showNotification('Refreshed to get latest content', 'info');
+      }
+    }
+
+    ignoreConflict() {
+      console.log('Ignoring conflict, conflict ID:', this.currentConflictId);
+      
+      if (this.currentConflictId && this.channel) {
+        console.log('Performing resolve_conflict with ignore action');
+        this.channel.perform('resolve_conflict', {
+          conflict_id: this.currentConflictId.toString(),
+          resolution_action: 'ignore'
+        });
+        
+        this.showNotification('Ignoring conflict...', 'info');
+      } else {
+        console.warn('No current conflict ID, just closing modal');
+        this.closeConflictModal();
+        this.showNotification('Conflict ignored', 'info');
+      }
+    }
+
+    refreshEditor() {
+      if (this.channel) {
+        this.channel.perform('request_fresh_state', {});
+      }
+      this.closeConflictModal();
+    }
+
+    closeConflictModal() {
+      console.log('Attempting to close conflict modal');
+      const modal = document.getElementById('conflictModal');
+      if (!modal) {
+        console.warn('Conflict modal not found');
+        this.cleanupModalState();
+        return;
+      }
+      
+      if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+        try {
+          const bsModal = bootstrap.Modal.getInstance(modal);
+          if (bsModal) {
+            console.log('Closing modal using Bootstrap');
+            bsModal.hide();
+          } else {
+            console.log('No Bootstrap modal instance, creating one to close');
+            const newModal = new bootstrap.Modal(modal);
+            newModal.hide();
+          }
+        } catch (error) {
+          console.warn('Bootstrap modal close failed, using manual close:', error);
+          this.manualModalClose(modal);
+        }
+      } else {
+        console.log('Bootstrap not available, hiding manually');
+        this.manualModalClose(modal);
+      }
+      
+      setTimeout(() => {
+        this.cleanupModalState();
+      }, 300);
+    }
+
+    manualModalClose(modal) {
+      modal.style.display = 'none';
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+      modal.removeAttribute('aria-modal');
+      
+      document.body.classList.remove('modal-open');
+      
+      const backdrop = document.querySelector('.modal-backdrop');
+      if (backdrop) {
+        backdrop.remove();
+      }
+      
+      document.body.style.paddingRight = '';
+      document.body.style.overflow = '';
+    }
+
+    cleanupModalState() {
+      console.log('Cleaning up modal state');
+      
+      const backdrops = document.querySelectorAll('.modal-backdrop');
+      backdrops.forEach(backdrop => backdrop.remove());
+      
+      document.body.classList.remove('modal-open');
+      document.body.style.paddingRight = '';
+      document.body.style.overflow = '';
+      
+      const modal = document.getElementById('conflictModal');
+      if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+        modal.removeAttribute('aria-modal');
+      }
+      
+      console.log('Modal state cleanup completed');
+    }
+
+    sendContentUpdate(content, changes) {
+      if (!this.channel) return;
+      
+      console.log('Sending content update:', changes);
+      
+      this.channel.perform('content_update', {
+        content: content,
+        changes: changes
+      });
+      
+      this.lastContent = content;
+    }
+
+    sendCursorUpdate(position) {
+      if (!this.channel) return;
+      
+      this.channel.perform('cursor_update', {
+        line: position.lineNumber,
+        column: position.column
+      });
+    }
+
+    sendSelectionUpdate(selection) {
+      if (!this.channel) return;
+      
+      this.channel.perform('selection_update', {
+        start_line: selection.startLineNumber,
+        start_column: selection.startColumn,
+        end_line: selection.endLineNumber,
+        end_column: selection.endColumn
+      });
+    }
+
+    updateUsersList() {
+      const container = document.getElementById('activeUsers');
+      if (!container) return;
+      
+      container.innerHTML = Array.from(this.users.values())
+        .map(user => `
+          <div class="user-avatar" style="background-color: ${user.color}" title="${user.name}">
+            ${user.name.substring(0, 2).toUpperCase()}
+          </div>
+        `).join('');
+    }
+
+    setupUIHandlers() {
+      const saveBtn = document.getElementById('saveBtn');
+      if (saveBtn) {
+        saveBtn.addEventListener('click', async () => {
+          if (this.config.canEdit === 'true' || this.config.canEdit === true) {
+            await this.saveFile();
+          }
+        });
+      }
+      
+      const commitBtn = document.getElementById('commitBtn');
+      if (commitBtn) {
+        commitBtn.addEventListener('click', async () => {
+          if (this.config.canEdit === 'true' || this.config.canEdit === true) {
+            await this.commitFile();
+          }
+        });
+      }
+    }
+
+    async saveFile() {
+      const btn = document.getElementById('saveBtn');
+      if (!btn) return;
+      
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+      
+      try {
+        const response = await fetch(this.config.savePath, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+          },
+          body: new URLSearchParams({
+            content: this.editor.getValue()
+          })
+        });
+        
+        if (response.ok) {
+          this.showNotification('File saved successfully', 'success');
+        } else {
+          throw new Error('Save failed');
+        }
+      } catch (error) {
+        this.showNotification('Failed to save file', 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-save me-2"></i>Save';
+      }
+    }
+
+    async commitFile() {
+      const message = prompt('Enter commit message:');
+      if (!message) return;
+      
+      const btn = document.getElementById('commitBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Committing...';
+      
+      try {
+        const response = await fetch(this.config.commitPath, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+          },
+          body: new URLSearchParams({
+            message: message
+          })
+        });
+        
+        if (response.ok) {
+          this.showNotification('Changes committed successfully', 'success');
+        } else {
+          throw new Error('Commit failed');
+        }
+      } catch (error) {
+        this.showNotification('Failed to commit changes', 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-check me-2"></i>Commit';
+      }
+    }
+
+    showNotification(message, type = 'info', duration = 3000) {
+      const container = document.getElementById('notifications');
+      if (!container) {
+        console.warn('Notifications container not found');
+        return;
+      }
+      
+      const alertType = type === 'error' ? 'danger' : type;
+      const id = Date.now();
+      
+      const alert = document.createElement('div');
+      alert.className = `alert alert-${alertType} alert-dismissible fade show`;
+      alert.setAttribute('data-notification-id', id);
+      alert.innerHTML = `
+        <div class="d-flex align-items-center">
+          <i class="fas fa-${this.getIconForType(type)} me-2"></i>
+          <span>${message}</span>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+      `;
+      
+      container.appendChild(alert);
+      
+      if (duration > 0) {
+        setTimeout(() => {
+          if (alert.parentNode) {
+            alert.remove();
+          }
+        }, duration);
+      }
+    }
+
+    getIconForType(type) {
+      const icons = {
+        'success': 'check-circle',
+        'info': 'info-circle',
+        'warning': 'exclamation-triangle',
+        'danger': 'exclamation-circle',
+        'error': 'exclamation-circle'
+      };
+      return icons[type] || 'info-circle';
+    }
+  }
+
+  // Enhanced CSS for better conflict visualization
+  const style = document.createElement('style');
+  style.textContent = `
+    .user-cursor {
+      border-left: 2px solid;
+      animation: blink 1s ease-in-out infinite;
+      position: relative;
+    }
+    
+    @keyframes blink {
+      0%, 50%, 100% { opacity: 1; }
+      25%, 75% { opacity: 0; }
+    }
+    
+    .cursor-label::before {
+      content: attr(data-username);
+      position: absolute;
+      top: -25px;
+      left: 2px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 100;
+    }
+    
+    .user-selection {
+      background-color: rgba(0, 123, 255, 0.15);
+      border: 1px solid rgba(0, 123, 255, 0.3);
+    }
+    
+    .conflict-line {
+      background-color: rgba(255, 193, 7, 0.2) !important;
+      border-left: 4px solid #ffc107 !important;
+    }
+    
+    .conflict-glyph {
+      background-color: #ffc107 !important;
+      width: 12px !important;
+      height: 12px !important;
+      border-radius: 50%;
+      margin: 2px;
+    }
+    
+    .conflict-glyph::before {
+      content: "!";
+      color: #fff;
+      font-weight: bold;
+      font-size: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+    }
+  `;
+  document.head.appendChild(style);
+
+  window.collaborativeEditor = null;
+</script>
+
 <style>
+  .editor-page-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+  }
+  
+  #editorContainer {
+    position: absolute;
+    top: 56px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1;
+  }
+  
+  .editor-header {
+    background: #2c3e50;
+    color: white;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    z-index: 10;
+    flex-shrink: 0;
+  }
+  
+  .editor-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  .file-name {
+    font-size: 18px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+  }
+  
+  .branch-badge {
+    background: #3498db;
+    padding: 4px 12px;
+    border-radius: 16px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+  }
+  
+  .editor-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  
+  #activeUsers {
+    display: flex;
+    gap: 8px;
+    margin-right: 20px;
+  }
+  
+  .user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+    border: 2px solid white;
+  }
+  
+  .btn-action {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    padding: 6px 12px;
+    text-decoration: none;
+  }
+  
+  .btn-action i {
+    font-size: 14px;
+  }
+  
+  .editor-main {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  #monaco-editor {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100%;
+    width: 100%;
+  }
+  
   .notifications-container {
-    max-height: 200px;
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    z-index: 1060;
+    max-width: 400px;
+    max-height: 60vh;
     overflow-y: auto;
   }
   
-  .notifications-container:empty {
-    display: none;
+  .notifications-container .alert {
+    margin-bottom: 10px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    border: none;
+    border-radius: 8px;
   }
   
-  .alert {
-    margin-bottom: 0.5rem;
+  .monaco-user-cursor {
+    border-left: 2px solid;
+    animation: monaco-cursor-blink 1s ease-in-out infinite;
   }
   
-  .alert:last-child {
-    margin-bottom: 0;
+  @keyframes monaco-cursor-blink {
+    0%, 50%, 100% { opacity: 1; }
+    25%, 75% { opacity: 0; }
   }
   
-  .conflict-item {
-    transition: all 0.3s ease;
-    margin-bottom: 1rem;
-    padding: 1rem;
-    border: 1px solid #dee2e6;
-    border-radius: 0.375rem;
-    background-color: #fff;
+  .monaco-cursor-label {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-left: 2px;
+    white-space: nowrap;
+    z-index: 100;
   }
   
-  .conflict-item:hover {
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  .monaco-user-selection {
+    background-color: rgba(0, 123, 255, 0.1);
   }
   
-  .btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+  .monaco-selection-label {
+    position: absolute;
+    top: -20px;
+    left: 0;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    white-space: nowrap;
   }
   
-  .diff-container {
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
-    max-height: 200px;
-    overflow-y: auto;
-    border: 1px solid #dee2e6;
-    border-radius: 0.25rem;
-    margin: 0.5rem 0;
+  .monaco-conflict-line {
+    background-color: rgba(255, 193, 7, 0.2) !important;
+    border-left: 4px solid #ffc107 !important;
   }
   
-  .diff-line {
-    padding: 0.25rem 0.5rem;
-    white-space: pre-wrap;
+  .monaco-conflict-glyph {
+    background-color: #ffc107 !important;
+    width: 12px !important;
+    height: 12px !important;
+    border-radius: 50%;
   }
   
-  .diff-added {
-    background-color: #d4edda;
-    color: #155724;
+  .modal-content {
+    border-radius: 12px;
+    border: none;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.2);
   }
   
-  .diff-removed {
-    background-color: #f8d7da;
-    color: #721c24;
+  .modal-header {
+    border-bottom: 1px solid #dee2e6;
+    border-radius: 12px 12px 0 0;
   }
   
-  .diff-unchanged {
-    background-color: #f8f9fa;
-    color: #6c757d;
+  .modal-body .btn {
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  
+  .modal-body .btn i {
+    width: 16px;
   }
 </style>

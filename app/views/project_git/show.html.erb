@@ -4,46 +4,7 @@
   <div class="row g-0">
 
     <!-- Sidebar -->
-    <nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse border-end">
-      <div class="position-sticky p-4">
-        <h5 class="fw-bold text-primary mb-4">Git Panel</h5>
-        <ul class="nav flex-column">
-          <li class="nav-item mb-2">
-            <%= link_to project_git_path(@project), class: sidebar_link_class('show') + ' nav-link d-flex align-items-center' do %>
-              <i class="bi bi-clock-history me-2"></i> History
-            <% end %>
-          </li>
-          <li class="nav-item mb-2">
-            <%= link_to project_git_branches_path(@project), class: sidebar_link_class('branches') + ' nav-link d-flex align-items-center' do %>
-              <i class="bi bi-git me-2"></i> Branches
-            <% end %>
-          </li>
-          <li class="nav-item mb-2">
-            <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: sidebar_link_class('commits') + ' nav-link d-flex align-items-center' do %>
-              <i class="bi bi-list-ol me-2"></i> Commits
-            <% end %>
-          </li>
-          <li class="nav-item mt-3 mb-1">
-            <hr class="my-2">
-            <small class="text-muted fw-bold">GITHUB</small>
-          </li>
-          
-          <li class="nav-item mb-2">
-            <%= link_to github_project_sync_path(@project), class: sidebar_link_class('sync') + ' nav-link d-flex align-items-center position-relative' do %>
-              <i class="bi bi-github me-2"></i> 
-              <span>Sync</span>
-              <% if !github_token_valid? %>
-                <span class="badge bg-warning ms-auto" style="font-size: 0.6rem;">!</span>
-              <% elsif @project&.github_url.blank? %>
-                <span class="badge bg-info ms-auto" style="font-size: 0.6rem;">Link</span>
-              <% else %>
-                <span class="badge bg-success ms-auto" style="font-size: 0.6rem;">✓</span>
-              <% end %>
-            <% end %>
-          </li>
-        </ul>
-      </div>
-    </nav>
+    <%= render 'partials/git_sidebar' %>
 
     <!-- Main Content -->
     <main class="col-md-9 ms-sm-auto col-lg-10 px-md-5 py-4 bg-light min-vh-100">

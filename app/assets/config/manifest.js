@@ -8,3 +8,5 @@
 //= link @rails--ujs.js
 //= link bootstrap.js
 //= link @popperjs--core.js
+//= link collaborative_editor.js
+//= link action_cable.js

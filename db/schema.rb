@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_06_15_121004) do
+ActiveRecord::Schema[7.2].define(version: 2025_06_15_183241) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -44,14 +44,17 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_15_121004) do
     t.bigint "user_id", null: false
     t.string "file_path", null: false
     t.string "branch", null: false
-    t.text "content"
-    t.text "base_content"
-    t.text "incoming_content"
-    t.json "lines_changed"
-    t.json "changed_lines"
+    t.json "conflicting_lines"
     t.boolean "resolved", default: false
     t.datetime "created_at", precision: nil
     t.datetime "updated_at", precision: nil
+    t.string "operation_type", null: false
+    t.integer "line_start", null: false
+    t.integer "line_end", null: false
+    t.datetime "resolved_at"
+    t.index ["created_at"], name: "index_conflict_queues_on_created_at"
+    t.index ["line_start", "line_end"], name: "index_conflicts_on_line_range"
+    t.index ["project_id", "file_path", "branch", "resolved"], name: "index_conflicts_on_file_and_resolved"
     t.index ["project_id", "file_path", "branch"], name: "index_conflict_queues_on_project_id_and_file_path_and_branch"
     t.index ["project_id"], name: "index_conflict_queues_on_project_id"
     t.index ["user_id", "resolved"], name: "index_conflict_queues_on_user_id_and_resolved"

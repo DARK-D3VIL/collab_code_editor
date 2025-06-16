@@ -49,7 +49,7 @@ class ProjectFilesController < ApplicationController
     @project = current_user.projects.find(params[:project_id])
     @current_path = params[:path].to_s
     @file_name = params[:id]
-    
+
     unless editable_file?(@file_name)
       redirect_to project_project_files_path(@project, path: @current_path), alert: "This file type is not supported for viewing." and return
     end
@@ -67,11 +67,10 @@ class ProjectFilesController < ApplicationController
     @language = language_for_extension(@file_name)
     @file_path = @current_path
   end
-
   def edit
     # Check if user has write permissions
     unless current_user == @project.owner || current_user_membership&.can_write?
-      redirect_to project_project_files_path(@project, path: params[:path].to_s), 
+      redirect_to project_project_files_path(@project, path: params[:path].to_s),
                   notice: "You have read-only access. Use the view option to see file contents." and return
     end
 
@@ -80,7 +79,7 @@ class ProjectFilesController < ApplicationController
     @current_path = params[:path].to_s
     @file_name = params[:id]
     @can_edit = current_user_membership&.can_write? || @project.owner == current_user
-    
+
     unless editable_file?(@file_name)
       redirect_to project_project_files_path(@project, path: @current_path), alert: "This file type is not supported for editing." and return
     end
@@ -254,7 +253,7 @@ class ProjectFilesController < ApplicationController
 
     # Use safe checkout strategy instead of force
     repo.checkout(rugged_branch.name, strategy: :safe)
-  rescue Rugged::CheckoutConflictError
+  rescue Rugged::CheckoutError
     # Handle conflicts by using force checkout but preserve unsaved files
     preserve_working_changes(repo_path)
     repo.checkout(rugged_branch.name, strategy: :force)
