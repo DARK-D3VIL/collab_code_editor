@@ -48,9 +48,11 @@ resources :conflicts, only: [ :index, :show, :destroy ] do
   get "/github_repos", to: "github#repos"
   post "/github_clone", to: "github#clone", as: :github_clone
   delete "/github/projects/:project_id/unlink", to: "github#unlink_repository", as: "github_project_unlink"
+  post "github/clone_public", to: "github#clone_public", as: "github_clone_public"
   resources :projects do
     collection do
       post "join"
+      post "upload"
     end
     scope path: "github", as: "github" do
       get "sync", to: "github#sync"

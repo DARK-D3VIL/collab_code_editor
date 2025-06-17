@@ -24,6 +24,84 @@
           <%= button_to "🔗 Connect with GitHub", user_github_omniauth_authorize_path, class: "btn btn-outline-dark btn-lg w-100" %>
         <% end %>
       </div>
+
+      <!-- Toggle Button for More Options -->
+      <div class="text-center mt-3">
+        <button type="button" class="btn btn-link text-muted" id="toggleMoreOptions">
+          <i class="fas fa-plus-circle me-1"></i>
+          More Options
+        </button>
+      </div>
+
+      <!-- Hidden Options Panel -->
+      <div id="moreOptionsPanel" class="mt-4" style="display: none;">
+        <hr class="my-4">
+        
+        <!-- Public Repository Clone Option -->
+        <div class="mb-4">
+          <h5 class="fw-semibold mb-3">
+            <i class="fab fa-github me-2"></i>
+            Clone Public Repository
+          </h5>
+          <p class="text-muted small mb-3">Clone any public GitHub repository without authentication</p>
+          
+          <%= form_with url: github_clone_public_path, local: true, id: "publicCloneForm" do |f| %>
+            <div class="input-group">
+              <%= f.url_field :github_url, 
+                  class: "form-control", 
+                  placeholder: "https://github.com/username/repository", 
+                  required: true,
+                  pattern: "https://github\.com/.+/.+" %>
+              <button type="submit" class="btn btn-outline-primary" id="clonePublicBtn">
+                <span class="spinner-border spinner-border-sm me-1 d-none" id="cloneSpinner"></span>
+                <i class="fas fa-download me-1" id="cloneIcon"></i>
+                Clone
+              </button>
+            </div>
+            <div class="form-text">
+              <i class="fas fa-info-circle me-1"></i>
+              Enter the full GitHub URL (e.g., https://github.com/user/repo)
+            </div>
+          <% end %>
+        </div>
+
+        <!-- Zip File Upload Option -->
+        <div class="mb-4">
+          <h5 class="fw-semibold mb-3">
+            <i class="fas fa-file-archive me-2"></i>
+            Upload Project Archive
+          </h5>
+          <p class="text-muted small mb-3">Upload a zip file containing your project (supports Git repositories)</p>
+          
+          <%= form_with url: upload_projects_path, local: true, multipart: true, id: "zipUploadForm" do |f| %>
+            <div class="mb-3">
+              <%= f.file_field :zip_file, 
+                  class: "form-control", 
+                  accept: ".zip",
+                  required: true,
+                  id: "zipFileInput" %>
+              <div class="form-text">
+                <i class="fas fa-info-circle me-1"></i>
+                Maximum file size: 50MB. Supports .zip files with or without Git history.
+              </div>
+            </div>
+            
+            <div class="mb-3">
+              <%= f.text_field :project_name, 
+                  class: "form-control", 
+                  placeholder: "Project name (optional - will use folder name if empty)" %>
+            </div>
+            
+            <div class="d-grid">
+              <button type="submit" class="btn btn-outline-success" id="uploadBtn">
+                <span class="spinner-border spinner-border-sm me-1 d-none" id="uploadSpinner"></span>
+                <i class="fas fa-upload me-1" id="uploadIcon"></i>
+                Upload & Create Project
+              </button>
+            </div>
+          <% end %>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -31,3 +109,148 @@
     <%= link_to "⬅ Back to Projects", projects_path, class: "text-decoration-none text-secondary" %>
   </div>
 </div>
+
+<style>
+  .input-group .form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+  }
+  
+  .btn-outline-primary:hover {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+  }
+  
+  .btn-outline-success:hover {
+    background-color: #198754;
+    border-color: #198754;
+  }
+  
+  #moreOptionsPanel {
+    border-top: 1px solid #dee2e6;
+    padding-top: 1rem;
+  }
+  
+  .form-text {
+    font-size: 0.875rem;
+  }
+  
+  .spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.3s ease-in;
+  }
+  
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const toggleBtn = document.getElementById('toggleMoreOptions');
+  const moreOptionsPanel = document.getElementById('moreOptionsPanel');
+  const publicCloneForm = document.getElementById('publicCloneForm');
+  const zipUploadForm = document.getElementById('zipUploadForm');
+  const cloneBtn = document.getElementById('clonePublicBtn');
+  const uploadBtn = document.getElementById('uploadBtn');
+  const cloneSpinner = document.getElementById('cloneSpinner');
+  const uploadSpinner = document.getElementById('uploadSpinner');
+  const cloneIcon = document.getElementById('cloneIcon');
+  const uploadIcon = document.getElementById('uploadIcon');
+  const zipFileInput = document.getElementById('zipFileInput');
+
+  // Toggle more options panel
+  toggleBtn.addEventListener('click', function() {
+    if (moreOptionsPanel.style.display === 'none') {
+      moreOptionsPanel.style.display = 'block';
+      moreOptionsPanel.classList.add('fade-in');
+      toggleBtn.innerHTML = '<i class="fas fa-minus-circle me-1"></i>Fewer Options';
+    } else {
+      moreOptionsPanel.style.display = 'none';
+      moreOptionsPanel.classList.remove('fade-in');
+      toggleBtn.innerHTML = '<i class="fas fa-plus-circle me-1"></i>More Options';
+    }
+  });
+
+  // Handle public clone form submission
+  publicCloneForm.addEventListener('submit', function(e) {
+    const githubUrl = this.querySelector('input[name="github_url"]').value;
+    
+    // Basic GitHub URL validation
+    if (!githubUrl.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+/)) {
+      e.preventDefault();
+      alert('Please enter a valid GitHub repository URL (e.g., https://github.com/user/repo)');
+      return;
+    }
+
+    // Show loading state
+    cloneSpinner.classList.remove('d-none');
+    cloneIcon.classList.add('d-none');
+    cloneBtn.disabled = true;
+    cloneBtn.innerHTML = cloneBtn.innerHTML.replace('Clone', 'Cloning...');
+  });
+
+  // Handle zip upload form submission
+  zipUploadForm.addEventListener('submit', function(e) {
+    const fileInput = zipFileInput;
+    const file = fileInput.files[0];
+    
+    if (!file) {
+      e.preventDefault();
+      alert('Please select a zip file to upload.');
+      return;
+    }
+    
+    // Check file size (50MB limit)
+    if (file.size > 50 * 1024 * 1024) {
+      e.preventDefault();
+      alert('File size must be less than 50MB.');
+      return;
+    }
+    
+    // Check file type
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      e.preventDefault();
+      alert('Please select a .zip file.');
+      return;
+    }
+
+    // Show loading state
+    uploadSpinner.classList.remove('d-none');
+    uploadIcon.classList.add('d-none');
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = uploadBtn.innerHTML.replace('Upload & Create Project', 'Processing...');
+  });
+
+  // File input change handler for better UX
+  zipFileInput.addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+      const projectNameInput = document.querySelector('input[name="project_name"]');
+      if (!projectNameInput.value) {
+        // Extract name from filename (remove .zip extension)
+        const fileName = file.name.replace(/\.zip$/i, '');
+        projectNameInput.placeholder = `Project name (will use "${fileName}" if empty)`;
+      }
+    }
+  });
+
+  // Reset form states on page load
+  window.addEventListener('beforeunload', function() {
+    // Reset clone button
+    cloneSpinner.classList.add('d-none');
+    cloneIcon.classList.remove('d-none');
+    cloneBtn.disabled = false;
+    
+    // Reset upload button
+    uploadSpinner.classList.add('d-none');
+    uploadIcon.classList.remove('d-none');
+    uploadBtn.disabled = false;
+  });
+});
+</script>

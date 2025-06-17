@@ -201,6 +201,188 @@ class GithubController < ApplicationController
     redirect_to github_project_sync_path(@project), notice: "Repository unlinked successfully!"
   end
 
+  def clone_public
+    github_url = params[:github_url]
+
+    # Validate GitHub URL format
+    unless github_url.present? && github_url.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+/)
+      redirect_to new_project_path, alert: "Please provide a valid GitHub repository URL."
+      return
+    end
+
+    # Extract repository name from URL
+    match = github_url.match(/github\.com\/[^\/]+\/([^\/\.]+)/)
+    repo_name = match ? match[1] : "imported-project"
+
+    # Check if the user already has a project with this repo name
+    counter = 1
+    original_name = repo_name
+    while current_user.owned_projects.exists?(name: repo_name)
+      repo_name = "#{original_name}-#{counter}"
+      counter += 1
+    end
+
+    begin
+      # Create new Project
+      slug = SecureRandom.hex(3)
+      project = current_user.owned_projects.create!(
+        name: repo_name,
+        slug: slug,
+        github_url: github_url
+      )
+
+      repo_path = Rails.root.join("storage", "projects", "project_#{project.id}")
+      FileUtils.mkdir_p(repo_path)
+
+      # Clone the repo into that path (public repos don't need authentication)
+      Rugged::Repository.clone_at(github_url, repo_path.to_s)
+
+      # Read the repo and fetch metadata from it
+      repo = Rugged::Repository.new(repo_path.to_s)
+
+      # Check if repository is empty
+      if repo.empty?
+        project.destroy
+        FileUtils.rm_rf(repo_path)
+        redirect_to new_project_path, alert: "Cannot clone empty repository."
+        return
+      end
+
+      # Try to get the default branch - handle different scenarios
+      head = nil
+      branch_name = nil
+
+      begin
+        # Try to get HEAD reference
+        head = repo.head.target_id
+        branch_name = repo.head.name.sub("refs/heads/", "")
+      rescue Rugged::ReferenceError
+        # If HEAD doesn't exist or points to non-existent branch, find the default branch
+        branches = repo.branches.each_name(:local).to_a
+
+        if branches.empty?
+          project.destroy
+          FileUtils.rm_rf(repo_path)
+          redirect_to new_project_path, alert: "Repository has no branches."
+          return
+        end
+
+        # Try common default branch names in order of preference
+        default_candidates = [ "main", "master", "develop", "dev" ]
+        branch_name = default_candidates.find { |name| branches.include?(name) } || branches.first
+
+        begin
+          branch_ref = repo.branches[branch_name]
+          head = branch_ref.target_id
+        rescue => e
+          project.destroy
+          FileUtils.rm_rf(repo_path)
+          redirect_to new_project_path, alert: "Could not access repository branches: #{e.message}"
+          return
+        end
+      end
+
+      # Create all branches from the repository
+      created_branches = {}
+      default_branch = nil
+
+      repo.branches.each_name(:local) do |branch_name_iter|
+        branch_obj = repo.branches[branch_name_iter]
+        next unless branch_obj
+
+        db_branch = project.branches.create!(
+          name: branch_name_iter,
+          created_by: current_user.id
+        )
+
+        created_branches[branch_name_iter] = db_branch
+        default_branch = db_branch if branch_name_iter == branch_name
+      end
+
+      # If no default branch was set, use the first one
+      default_branch ||= created_branches.values.first
+
+      # Walk through commits for each branch and save them
+      total_commits = 0
+      created_branches.each do |branch_name_iter, db_branch|
+        begin
+          branch_ref = repo.branches[branch_name_iter]
+          next unless branch_ref
+
+          walker = Rugged::Walker.new(repo)
+          walker.push(branch_ref.target_id)
+
+          commit_count = 0
+          walker.each do |commit|
+            # Check if commit already exists (in case of shared history)
+            next if Commit.exists?(project: project, sha: commit.oid)
+
+            Commit.create!(
+              user: current_user,
+              branch: db_branch,
+              project: project,
+              message: commit.message,
+              sha: commit.oid,
+              parent_sha: commit.parents.first&.oid
+            )
+            commit_count += 1
+            total_commits += 1
+
+            # Limit commits to prevent timeout on large repos
+            break if commit_count >= 1000
+          end
+
+          walker.reset
+        rescue => e
+          Rails.logger.error "Error processing branch #{branch_name_iter}: #{e.message}"
+          # Continue with other branches
+        end
+      end
+
+      # Create project membership
+      ProjectMembership.create!(
+        user: current_user,
+        project: project,
+        current_branch: default_branch
+      )
+
+      redirect_to project_project_files_path(project),
+                  notice: "Successfully cloned public repository! (#{total_commits} commits imported across #{created_branches.size} branches)"
+
+    rescue Rugged::NetworkError => e
+      # Handle network-related errors (invalid URL, repository not found, etc.)
+      project&.destroy
+      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
+
+      error_message = if e.message.include?("not found")
+        "Repository not found. Please check the URL or make sure the repository is public."
+      elsif e.message.include?("access")
+        "Access denied. The repository might be private or the URL is incorrect."
+      else
+        "Failed to clone repository: #{e.message}"
+      end
+
+      redirect_to new_project_path, alert: error_message
+
+    rescue Rugged::OSError => e
+      # Handle file system errors
+      project&.destroy
+      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
+      redirect_to new_project_path, alert: "File system error: #{e.message}"
+
+    rescue StandardError => e
+      # Handle any other errors
+      project&.destroy
+      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
+      Rails.logger.error "Public clone error: #{e.message}\n#{e.backtrace.join("\n")}"
+      redirect_to new_project_path, alert: "An error occurred while cloning: #{e.message}"
+
+    ensure
+      # Clean up any open resources
+      walker&.reset if defined?(walker)
+    end
+  end
+
   private
 
   def set_project

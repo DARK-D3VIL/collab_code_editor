@@ -67,10 +67,13 @@
         <% if current_user == @project.owner || current_user_membership&.can_write? %>
           <%= button_to destroy_folder_project_project_files_path(@project, folder: folder, path: @current_path),
                         method: :delete,
-                        data: { confirm: "Are you sure you want to delete the folder '#{folder}'?" },
+                        data: { 
+                          turbo_confirm: "⚠️ Are you sure you want to delete the folder '#{folder}'?\n\nThis will permanently delete the folder and ALL files inside it.\n\nThis action cannot be undone!",
+                          turbo_method: :delete
+                        },
                         class: "btn btn-sm btn-outline-danger",
                         title: "Delete Folder",
-                        onclick: "event.stopPropagation();" do %>
+                        onclick: "event.stopPropagation(); return confirmFolderDelete('#{folder}');" do %>
             <i class="bi bi-trash"></i>
           <% end %>
         <% end %>
@@ -138,10 +141,13 @@
                 <% if can_write %>
                   <%= button_to destroy_file_project_project_files_path(@project, file: file_name, path: @current_path),
                                 method: :delete,
-                                data: { confirm: "Are you sure you want to delete '#{file_name}'?" },
+                                data: { 
+                                  turbo_confirm: "⚠️ Are you sure you want to delete '#{file_name}'?\n\nThis action cannot be undone!",
+                                  turbo_method: :delete
+                                },
                                 class: "btn btn-sm btn-outline-danger",
                                 title: "Delete File",
-                                onclick: "event.stopPropagation();" do %>
+                                onclick: "event.stopPropagation(); return confirmFileDelete('#{file_name}');" do %>
                     <i class="bi bi-trash"></i>
                   <% end %>
                 <% end %>
@@ -292,4 +298,54 @@ document.addEventListener('DOMContentLoaded', function() {
     commitMessage.value = '';
   });
 });
+
+// Enhanced confirmation functions for delete operations
+function confirmFileDelete(fileName) {
+  const confirmed = confirm(`⚠️ DELETE FILE: "${fileName}"\n\n` +
+    `Are you absolutely sure you want to delete this file?\n\n` +
+    `This action CANNOT be undone!\n\n` +
+    `Click OK to delete, or Cancel to keep the file.`);
+  
+  if (confirmed) {
+    showDeleteProgress(`Deleting file "${fileName}"...`);
+    return true;
+  }
+  return false;
+}
+
+function confirmFolderDelete(folderName) {
+  const confirmed = confirm(`⚠️ DELETE FOLDER: "${folderName}"\n\n` +
+    `This will permanently delete the folder and ALL files inside it!\n\n` +
+    `This action CANNOT be undone!\n\n` +
+    `Click OK to delete everything, or Cancel to keep the folder.`);
+  
+  if (confirmed) {
+    showDeleteProgress(`Deleting folder "${folderName}" and all contents...`);
+    return true;
+  }
+  return false;
+}
+
+function showDeleteProgress(message) {
+  // Create a temporary loading indicator
+  const loadingDiv = document.createElement('div');
+  loadingDiv.className = 'alert alert-warning d-flex align-items-center';
+  loadingDiv.innerHTML = `
+    <div class="spinner-border spinner-border-sm me-2" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    ${message}
+  `;
+  
+  // Insert at the top of the main content
+  const mainContent = document.querySelector('main');
+  mainContent.insertBefore(loadingDiv, mainContent.firstChild);
+  
+  // Remove after 3 seconds (in case the deletion completes quickly)
+  setTimeout(() => {
+    if (loadingDiv.parentNode) {
+      loadingDiv.remove();
+    }
+  }, 3000);
+}
 </script>
