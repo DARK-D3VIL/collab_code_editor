@@ -1,10 +1,19 @@
+# app/models/user.rb
 class User < ApplicationRecord
-  # Include default devise modules. Others available are:
-  # :confirmable, :lockable, :timeoutable, :trackable and :omniauthable
+  # Include default devise modules
   devise :database_authenticatable, :registerable,
        :recoverable, :rememberable, :validatable,
        :omniauthable, omniauth_providers: [ :github ]
 
+  # Associations
+  has_many :email_verifications, dependent: :destroy
+  has_many :project_memberships
+  has_many :projects, through: :project_memberships
+  has_many :owned_projects, class_name: "Project", foreign_key: "owner_id"
+
+  validates :username, presence: true
+
+  # GitHub OAuth method
   def self.from_omniauth(auth)
     email = auth.info.email
     github_uid = auth.uid
@@ -19,7 +28,7 @@ class User < ApplicationRecord
       return user
     end
 
-    # If not found, check if user with same email exists (manual sign-up or different OAuth)
+    # If not found, check if user with same email exists
     user = find_by(email: email)
 
     if user
@@ -34,16 +43,42 @@ class User < ApplicationRecord
       email: email,
       username: auth.info.nickname,
       password: Devise.friendly_token[0, 20],
-      github_token: github_token
+      github_token: github_token,
+      email_verified_at: Time.current # GitHub users are auto-verified
     )
   end
 
-  validates :username, presence: true
+  # Email verification methods
+  def email_verified?
+    email_verified_at.present?
+  end
 
-  has_many :project_memberships
-  has_many :projects, through: :project_memberships
-  has_many :owned_projects, class_name: "Project", foreign_key: "owner_id"
+  def pending_email_verification
+    email_verifications.active.first
+  end
 
+  def verify_email_with_token(token)
+    verification = email_verifications.active.find_by(token: token)
+    return false unless verification
+    verification.verify!
+  end
+
+  # Override active_for_authentication to prevent login without verification
+  def active_for_authentication?
+    super && (email_verified? || oauth_user?)
+  end
+
+  # Custom message for inactive users
+  def inactive_message
+    email_verified? ? super : :email_not_verified
+  end
+
+  # Check if user signed up via OAuth
+  def oauth_user?
+    provider.present? && uid.present?
+  end
+
+  # Existing methods
   def membership_for(project)
     project_memberships.find_by(project_id: project.id)
   end
@@ -51,6 +86,7 @@ class User < ApplicationRecord
   def current_branch_for(project)
     membership_for(project)&.current_branch
   end
+
   def accessible_projects
     Project
       .left_outer_joins(:project_memberships)
@@ -60,6 +96,7 @@ class User < ApplicationRecord
         active: true
       ).distinct
   end
+
   def github_token_valid?
     return false unless github_token.present?
 
@@ -71,6 +108,19 @@ class User < ApplicationRecord
       response.success?
     rescue
       false
+    end
+  end
+
+  def active_for_authentication?
+    super && (email_verified? || oauth_user?)
+  end
+
+  # Custom message for inactive users
+  def inactive_message
+    if !email_verified? && !oauth_user?
+      :email_not_verified # This will show a custom symbol and define it in your locale files
+    else
+      super
     end
   end
 end

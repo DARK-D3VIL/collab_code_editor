@@ -1,6 +1,5 @@
 # app/mailers/project_request_mailer.rb
 class ProjectRequestMailer < ApplicationMailer
-  default from: "noreply@yourapp.com"
 
   def new_join_request(owner, join_request)
     @owner = owner

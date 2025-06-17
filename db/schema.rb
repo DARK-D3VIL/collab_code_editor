@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_06_15_183241) do
+ActiveRecord::Schema[7.2].define(version: 2025_06_17_074245) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -59,6 +59,19 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_15_183241) do
     t.index ["project_id"], name: "index_conflict_queues_on_project_id"
     t.index ["user_id", "resolved"], name: "index_conflict_queues_on_user_id_and_resolved"
     t.index ["user_id"], name: "index_conflict_queues_on_user_id"
+  end
+
+  create_table "email_verifications", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.string "email", null: false
+    t.string "token", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["expires_at"], name: "index_email_verifications_on_expires_at"
+    t.index ["token"], name: "index_email_verifications_on_token", unique: true
+    t.index ["user_id", "email"], name: "index_email_verifications_on_user_id_and_email"
+    t.index ["user_id"], name: "index_email_verifications_on_user_id"
   end
 
   create_table "project_files", force: :cascade do |t|
@@ -117,7 +130,9 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_15_183241) do
     t.string "github_token"
     t.string "provider"
     t.string "uid"
+    t.datetime "email_verified_at"
     t.index ["email"], name: "index_users_on_email", unique: true
+    t.index ["email_verified_at"], name: "index_users_on_email_verified_at"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
@@ -127,6 +142,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_15_183241) do
   add_foreign_key "commits", "users"
   add_foreign_key "conflict_queues", "projects"
   add_foreign_key "conflict_queues", "users"
+  add_foreign_key "email_verifications", "users"
   add_foreign_key "project_files", "projects"
   add_foreign_key "project_join_requests", "projects"
   add_foreign_key "project_join_requests", "users"

@@ -1,12 +1,28 @@
 Rails.application.routes.draw do
   devise_for :users, controllers: {
     registrations: "users/registrations",
+    sessions: "users/sessions",
     omniauth_callbacks: "users/omniauth_callbacks"
   }
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 
   # Reveal health status on /up that returns 200 if the app boots with no exceptions, otherwise 500.
   # Can be used by load balancers and uptime monitors to verify that the app is live.
+  devise_scope :user do
+    get "users/email_verification", to: "users/registrations#email_verification", as: :email_verification
+    post "users/verify_email", to: "users/registrations#verify_email", as: :verify_email
+    post "users/resend_verification", to: "users/registrations#resend_verification", as: :resend_verification
+  end
+
+  # Mount Sidekiq Web UI
+  if Rails.env.development?
+    mount Sidekiq::Web => "/sidekiq"
+  else
+    # In production, protect the Sidekiq UI
+    authenticate :user, ->(user) { user.admin? rescue false } do
+      mount Sidekiq::Web => "/admin/sidekiq"
+    end
+  end
   get "up" => "rails/health#show", as: :rails_health_check
 
   # Render dynamic PWA files from app/views/pwa/*
@@ -61,7 +77,6 @@ resources :conflicts, only: [ :index, :show, :destroy ] do
         post :commit_all
       end
       member do
-        # get :change_annotations
         get :edit
         post :save
         post :commit

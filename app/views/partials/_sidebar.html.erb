@@ -3,74 +3,131 @@
   <div class="position-sticky p-4">
     <h5 class="fw-bold text-primary mb-4">Project Navigation</h5>
     <ul class="nav flex-column">
-      <% if controller_name.in?(%w[project_files project_git project_members]) && defined?(@project) %>
+      <% if controller_name.in?(%w[project_files project_git project_members github]) && defined?(@project) %>
+        
+        <!-- Files Section -->
         <li class="nav-item mb-2">
-          <%= link_to project_project_files_path(@project, path: ""), class: "nav-link d-flex align-items-center sidebar-main-link #{controller_name == 'project_files' ? 'sidebar-active' : ''}" do %>
-            <i class="bi bi-folder2-open me-2 sidebar-icon"></i> Files
+          <%= link_to project_project_files_path(@project, path: ""), class: "nav-link d-flex align-items-center sidebar-link #{controller_name == 'project_files' ? 'active' : ''}" do %>
+            <i class="bi bi-files me-2 sidebar-icon"></i> Files
           <% end %>
         </li>
-        <li class="nav-item mb-2">
-          <%= link_to project_git_path(@project), class: "nav-link d-flex align-items-center sidebar-main-link #{controller_name == 'project_git' ? 'sidebar-active' : ''}" do %>
-            <i class="bi bi-git me-2 sidebar-icon"></i> Version Control
-          <% end %>
+        
+        <!-- Version Control Section with Expandable Dropdown -->
+        <li class="nav-item mb-2 dropdown-container #{controller_name.in?(%w[project_git github]) ? 'expanded' : ''}">
+          <div class="nav-link d-flex align-items-center sidebar-link dropdown-trigger #{controller_name.in?(%w[project_git github]) ? 'active' : ''}" 
+               onclick="toggleDropdown(this)">
+            <i class="bi bi-git me-2 sidebar-icon"></i> 
+            <span>Version Control</span>
+            <i class="bi bi-chevron-down ms-auto dropdown-arrow #{controller_name.in?(%w[project_git github]) ? 'rotated' : ''}"></i>
+          </div>
+          
+          <!-- Expandable Dropdown Menu -->
+          <div class="dropdown-menu-expandable #{controller_name.in?(%w[project_git github]) ? 'expanded' : ''}">
+            <ul class="nav flex-column">
+              <li class="nav-item">
+                <%= link_to project_git_path(@project), class: "#{sidebar_link_class('show')} nav-link d-flex align-items-center sidebar-sublink" do %>
+                  <i class="bi bi-git me-2 sidebar-subicon"></i> History
+                <% end %>
+              </li>
+              <li class="nav-item">
+                <%= link_to project_git_branches_path(@project), class: "#{sidebar_link_class('branches')} nav-link d-flex align-items-center sidebar-sublink" do %>
+                  <i class="bi bi-diagram-3 me-2 sidebar-subicon"></i> Branches
+                <% end %>
+              </li>
+              <li class="nav-item">
+                <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: "#{sidebar_link_class('commits')} nav-link d-flex align-items-center sidebar-sublink" do %>
+                  <i class="bi bi-journal-text me-2 sidebar-subicon"></i> Commits
+                <% end %>
+              </li>
+              
+              <!-- GitHub Integration Section -->
+              <li class="nav-item mt-2 mb-1">
+                <hr class="my-2 sidebar-divider">
+                <small class="text-muted fw-bold sidebar-section-title ps-3">GITHUB</small>
+              </li>
+              <li class="nav-item">
+                <%= link_to github_project_sync_path(@project), class: "#{sidebar_link_class('sync')} nav-link d-flex align-items-center position-relative sidebar-sublink" do %>
+                  <i class="bi bi-github me-2 sidebar-subicon"></i>
+                  <span>Sync</span>
+                  <% if !github_token_valid? %>
+                    <span class="badge bg-warning ms-auto sidebar-badge" style="font-size: 0.6rem;">!</span>
+                  <% elsif @project&.github_url.blank? %>
+                    <span class="badge bg-info ms-auto sidebar-badge" style="font-size: 0.6rem;">Link</span>
+                  <% else %>
+                    <span class="badge bg-success ms-auto sidebar-badge" style="font-size: 0.6rem;">✓</span>
+                  <% end %>
+                <% end %>
+              </li>
+            </ul>
+          </div>
         </li>
+        
+        <!-- Members Section -->
         <% if current_user == @project.owner %>
           <li class="nav-item mb-2">
-            <%= link_to project_project_members_path(@project), class: "nav-link d-flex align-items-center sidebar-main-link #{controller_name == 'project_members' ? 'sidebar-active' : ''}" do %>
+            <%= link_to project_project_members_path(@project), class: "nav-link d-flex align-items-center sidebar-link #{controller_name == 'project_members' ? 'active' : ''}" do %>
               <i class="bi bi-people me-2 sidebar-icon"></i> Members
             <% end %>
           </li>
         <% end %>
       <% end %>
-
-      <!-- Git Panel Section (existing functionality) -->
-      <% if controller_name == 'project_git' %>
-        <li class="nav-item mt-3 mb-1">
-          <hr class="my-2 sidebar-divider">
-          <small class="text-muted fw-bold sidebar-section-title">GIT PANEL</small>
-        </li>
-        <li class="nav-item mb-2">
-          <%= link_to project_git_path(@project), class: "#{sidebar_link_class('show')} nav-link d-flex align-items-center ps-3 sidebar-sub-link" do %>
-            <i class="bi bi-clock-history me-2 sidebar-sub-icon"></i> History
-          <% end %>
-        </li>
-        <li class="nav-item mb-2">
-          <%= link_to project_git_branches_path(@project), class: "#{sidebar_link_class('branches')} nav-link d-flex align-items-center ps-3 sidebar-sub-link" do %>
-            <i class="bi bi-diagram-2 me-2 sidebar-sub-icon"></i> Branches
-          <% end %>
-        </li>
-        <li class="nav-item mb-2">
-          <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: "#{sidebar_link_class('commits')} nav-link d-flex align-items-center ps-3 sidebar-sub-link" do %>
-            <i class="bi bi-list-ol me-2 sidebar-sub-icon"></i> Commits
-          <% end %>
-        </li>
-       
-        <!-- GitHub Integration Section -->
-        <li class="nav-item mt-3 mb-1">
-          <hr class="my-2 sidebar-divider">
-          <small class="text-muted fw-bold sidebar-section-title">GITHUB</small>
-        </li>
-        <li class="nav-item mb-2">
-          <%= link_to github_project_sync_path(@project), class: "#{sidebar_link_class('sync')} nav-link d-flex align-items-center position-relative ps-3 sidebar-sub-link" do %>
-            <i class="bi bi-github me-2 sidebar-sub-icon"></i>
-            <span>Sync</span>
-            <% if !github_token_valid? %>
-              <span class="badge bg-warning ms-auto sidebar-badge" style="font-size: 0.6rem;">!</span>
-            <% elsif @project&.github_url.blank? %>
-              <span class="badge bg-info ms-auto sidebar-badge" style="font-size: 0.6rem;">Link</span>
-            <% else %>
-              <span class="badge bg-success ms-auto sidebar-badge" style="font-size: 0.6rem;">✓</span>
-            <% end %>
-          <% end %>
-        </li>
-      <% end %>
     </ul>
   </div>
 </nav>
 
-<!-- Bulletproof Sidebar CSS - Exact Match Style -->
+<script>
+function toggleDropdown(element) {
+  const container = element.closest('.dropdown-container');
+  const dropdown = container.querySelector('.dropdown-menu-expandable');
+  const arrow = container.querySelector('.dropdown-arrow');
+  
+  // Toggle classes
+  container.classList.toggle('expanded');
+  dropdown.classList.toggle('expanded');
+  arrow.classList.toggle('rotated');
+  
+  // If we're expanding and not already active, make it active
+  if (container.classList.contains('expanded') && !element.classList.contains('active')) {
+    element.classList.add('active');
+  }
+  // If we're collapsing and no sub-items are active, remove active
+  else if (!container.classList.contains('expanded')) {
+    const hasActiveSubItems = dropdown.querySelector('.sidebar-sublink.active, .sidebar-sublink.text-primary');
+    if (!hasActiveSubItems) {
+      element.classList.remove('active');
+    }
+  }
+}
+
+// Auto-expand if we're on a git/github page and ensure proper state
+document.addEventListener('DOMContentLoaded', function() {
+  const gitContainer = document.querySelector('.dropdown-container');
+  
+  // Check if we're on any version control related page
+  const isVersionControlPage = gitContainer && (
+    gitContainer.classList.contains('expanded') || 
+    gitContainer.querySelector('.dropdown-trigger.active') ||
+    gitContainer.querySelector('.sidebar-sublink.active') ||
+    gitContainer.querySelector('.sidebar-sublink.text-primary')
+  );
+  
+  if (isVersionControlPage) {
+    const dropdown = gitContainer.querySelector('.dropdown-menu-expandable');
+    const arrow = gitContainer.querySelector('.dropdown-arrow');
+    const trigger = gitContainer.querySelector('.dropdown-trigger');
+    
+    // Ensure all elements have the correct expanded state
+    gitContainer.classList.add('expanded');
+    dropdown.classList.add('expanded');
+    arrow.classList.add('rotated');
+    trigger.classList.add('active');
+  }
+});
+</script>
+
+<!-- Modern Expandable Sidebar Styling -->
 <style>
-  /* Sidebar Container - Complete Protection */
+  /* Sidebar Base Styling - Bulletproof Protection */
   #projectSidebar.sidebar-protected {
     height: 100vh !important;
     position: fixed !important;
@@ -91,8 +148,8 @@
     font-size: 1.25rem !important;
   }
 
-  /* Main Navigation Links - Base Style */
-  #projectSidebar .sidebar-main-link {
+  /* Main Navigation Links */
+  #projectSidebar .sidebar-link {
     border-radius: 0.375rem !important;
     margin-bottom: 0.25rem !important;
     transition: all 0.2s ease !important;
@@ -102,106 +159,178 @@
     background-color: transparent !important;
     border: none !important;
     position: relative !important;
-    font-weight: 500 !important;
   }
 
-  /* Main Navigation Links - Hover State */
-  #projectSidebar .sidebar-main-link:hover {
+  /* Clickable dropdown trigger */
+  #projectSidebar .dropdown-trigger {
+    cursor: pointer !important;
+  }
+
+  /* Main link hover */
+  #projectSidebar .sidebar-link:hover {
     background-color: #f8f9fa !important;
     color: #495057 !important;
   }
 
-  /* Main Navigation Links - Active State with Blue Border */
-  #projectSidebar .sidebar-main-link.sidebar-active {
+  /* Active main links with blue left border */
+  #projectSidebar .sidebar-link.active {
     background-color: #e3f2fd !important;
     color: #1976d2 !important;
     border-left: 3px solid #1976d2 !important;
     font-weight: 600 !important;
   }
 
-  /* Main Navigation Icons */
+  /* Icons in main links */
   #projectSidebar .sidebar-icon {
     width: 16px !important;
     text-align: center !important;
     color: inherit !important;
   }
 
-  /* Section Dividers */
-  #projectSidebar .sidebar-divider {
-    border-top: 1px solid #e9ecef !important;
-    margin: 0.5rem 0 !important;
+  /* Dropdown Container */
+  #projectSidebar .dropdown-container {
+    position: relative !important;
   }
 
-  /* Section Titles */
-  #projectSidebar .sidebar-section-title {
+  /* Dropdown Arrow */
+  #projectSidebar .dropdown-arrow {
+    transition: transform 0.3s ease !important;
+    font-size: 0.8rem !important;
+  }
+
+  /* Rotate arrow when expanded */
+  #projectSidebar .dropdown-arrow.rotated {
+    transform: rotate(180deg) !important;
+  }
+
+  /* Expandable Dropdown Menu */
+  #projectSidebar .dropdown-menu-expandable {
+    max-height: 0 !important;
+    overflow: hidden !important;
+    background-color: #f8f9fa !important;
+    border-radius: 0.375rem !important;
+    margin: 0.25rem 0 0.5rem 0 !important;
+    transition: max-height 0.3s ease, padding 0.3s ease !important;
+    padding: 0 !important;
+  }
+
+  /* Expanded state */
+  #projectSidebar .dropdown-menu-expandable.expanded {
+    max-height: 400px !important;
+    padding: 0.5rem 0 !important;
+  }
+
+  /* Section Dividers in Dropdown */
+  #projectSidebar .dropdown-menu-expandable .sidebar-divider {
+    border-top: 1px solid #e9ecef !important;
+    margin: 0.5rem 0.75rem !important;
+  }
+
+  /* Section Titles in Dropdown */
+  #projectSidebar .dropdown-menu-expandable .sidebar-section-title {
     color: #6c757d !important;
     font-weight: 700 !important;
     font-size: 0.75rem !important;
     text-transform: uppercase !important;
     letter-spacing: 0.5px !important;
+    padding-left: 1rem !important;
   }
 
-  /* Sub Navigation Links - Base Style */
-  #projectSidebar .sidebar-sub-link {
+  /* Sub-navigation Links in Dropdown */
+  #projectSidebar .dropdown-menu-expandable .sidebar-sublink {
     border-radius: 0.375rem !important;
-    margin-bottom: 0.25rem !important;
+    margin: 0.125rem 0.75rem !important;
     transition: all 0.2s ease !important;
     color: #6c757d !important;
     text-decoration: none !important;
     padding: 0.5rem 0.75rem !important;
-    padding-left: 3rem !important; /* Indented for sub-items */
     background-color: transparent !important;
     border: none !important;
     position: relative !important;
     font-size: 0.9rem !important;
-    font-weight: 500 !important;
   }
 
-  /* Sub Navigation Links - Hover State */
-  #projectSidebar .sidebar-sub-link:hover {
-    background-color: #f8f9fa !important;
+  /* Sub-link hover in dropdown */
+  #projectSidebar .dropdown-menu-expandable .sidebar-sublink:hover {
+    background-color: #ffffff !important;
     color: #495057 !important;
   }
 
-  /* Sub Navigation Links - Active State with Blue Border */
-  #projectSidebar .sidebar-sub-link.active,
-  #projectSidebar .sidebar-sub-link.text-primary {
+  /* Active sub-links with blue left border in dropdown */
+  #projectSidebar .dropdown-menu-expandable .sidebar-sublink.active,
+  #projectSidebar .dropdown-menu-expandable .sidebar-sublink.text-primary {
     background-color: #e3f2fd !important;
     color: #1976d2 !important;
     border-left: 3px solid #1976d2 !important;
     font-weight: 600 !important;
   }
 
-  /* Sub Navigation Icons */
-  #projectSidebar .sidebar-sub-icon {
+  /* Icons in sub-links */
+  #projectSidebar .sidebar-subicon {
     width: 16px !important;
     text-align: center !important;
     color: inherit !important;
   }
 
-  /* Badges in Sub Navigation */
+  /* Badges */
   #projectSidebar .sidebar-badge {
     font-size: 0.6rem !important;
     padding: 0.25rem 0.4rem !important;
     border-radius: 0.25rem !important;
   }
 
-  /* Bootstrap Utility Classes Protection */
-  #projectSidebar .me-2 { margin-right: 0.5rem !important; }
-  #projectSidebar .ms-auto { margin-left: auto !important; }
-  #projectSidebar .mb-1 { margin-bottom: 0.25rem !important; }
-  #projectSidebar .mb-2 { margin-bottom: 0.5rem !important; }
-  #projectSidebar .mt-3 { margin-top: 1rem !important; }
-  #projectSidebar .my-2 { margin-top: 0.5rem !important; margin-bottom: 0.5rem !important; }
-  #projectSidebar .p-4 { padding: 1.5rem !important; }
-  #projectSidebar .ps-3 { padding-left: 1rem !important; }
+  /* Bootstrap utilities protection */
+  #projectSidebar .me-2 {
+    margin-right: 0.5rem !important;
+  }
 
-  /* Flex Utilities Protection */
-  #projectSidebar .d-flex { display: flex !important; }
-  #projectSidebar .align-items-center { align-items: center !important; }
-  #projectSidebar .flex-column { flex-direction: column !important; }
+  #projectSidebar .ms-auto {
+    margin-left: auto !important;
+  }
 
-  /* Navigation Lists Protection */
+  #projectSidebar .mb-1 {
+    margin-bottom: 0.25rem !important;
+  }
+
+  #projectSidebar .mb-2 {
+    margin-bottom: 0.5rem !important;
+  }
+
+  #projectSidebar .mt-2 {
+    margin-top: 0.5rem !important;
+  }
+
+  #projectSidebar .mt-3 {
+    margin-top: 1rem !important;
+  }
+
+  #projectSidebar .my-2 {
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  #projectSidebar .p-4 {
+    padding: 1.5rem !important;
+  }
+
+  #projectSidebar .ps-3 {
+    padding-left: 1rem !important;
+  }
+
+  /* Flex utilities */
+  #projectSidebar .d-flex {
+    display: flex !important;
+  }
+
+  #projectSidebar .align-items-center {
+    align-items: center !important;
+  }
+
+  #projectSidebar .flex-column {
+    flex-direction: column !important;
+  }
+
+  /* Navigation lists */
   #projectSidebar .nav {
     list-style: none !important;
     margin: 0 !important;
@@ -212,11 +341,17 @@
     list-style: none !important;
   }
 
-  /* Position Utilities Protection */
-  #projectSidebar .position-sticky { position: sticky !important; top: 0 !important; }
-  #projectSidebar .position-relative { position: relative !important; }
+  /* Position utilities */
+  #projectSidebar .position-sticky {
+    position: sticky !important;
+    top: 0 !important;
+  }
 
-  /* Bootstrap Icons Protection */
+  #projectSidebar .position-relative {
+    position: relative !important;
+  }
+
+  /* Bootstrap icons */
   #projectSidebar .bi {
     font-family: bootstrap-icons !important;
     font-style: normal !important;
@@ -226,14 +361,61 @@
     vertical-align: -0.125em !important;
   }
 
-  /* Color and Background Utilities Protection */
-  #projectSidebar.bg-white { background-color: #ffffff !important; }
-  #projectSidebar.border-end { border-right: 1px solid #dee2e6 !important; }
-  #projectSidebar .text-muted { color: #6c757d !important; }
-  #projectSidebar .text-primary { color: #0d6efd !important; }
-  #projectSidebar .fw-bold { font-weight: 700 !important; }
+  #projectSidebar .bi-chevron-down:before {
+    content: "\f282" !important;
+  }
 
-  /* Responsive Design */
+  #projectSidebar .bi-folder2-open:before {
+    content: "\f1c2" !important;
+  }
+
+  #projectSidebar .bi-git:before {
+    content: "\f1d3" !important;
+  }
+
+  #projectSidebar .bi-people:before {
+    content: "\f4d6" !important;
+  }
+
+  #projectSidebar .bi-clock-history:before {
+    content: "\f1a6" !important;
+  }
+
+  #projectSidebar .bi-diagram-2:before {
+    content: "\f229" !important;
+  }
+
+  #projectSidebar .bi-list-ol:before {
+    content: "\f376" !important;
+  }
+
+  #projectSidebar .bi-github:before {
+    content: "\f1d2" !important;
+  }
+
+  /* Background and border utilities */
+  #projectSidebar.bg-white {
+    background-color: #ffffff !important;
+  }
+
+  #projectSidebar.border-end {
+    border-right: 1px solid #dee2e6 !important;
+  }
+
+  /* Text utilities */
+  #projectSidebar .text-muted {
+    color: #6c757d !important;
+  }
+
+  #projectSidebar .text-primary {
+    color: #0d6efd !important;
+  }
+
+  #projectSidebar .fw-bold {
+    font-weight: 700 !important;
+  }
+
+  /* Responsive behavior */
   @media (max-width: 767.98px) {
     #projectSidebar.sidebar-protected {
       top: 5rem !important;
@@ -244,7 +426,7 @@
     }
   }
 
-  /* Complete Protection from External Styles */
+  /* Complete protection from external styles */
   #projectSidebar,
   #projectSidebar *,
   .sidebar-protected,
@@ -252,7 +434,7 @@
     box-sizing: border-box !important;
   }
 
-  /* Link State Protection */
+  /* Link protection */
   #projectSidebar a,
   #projectSidebar a:visited,
   #projectSidebar a:link,
@@ -260,31 +442,15 @@
     text-decoration: none !important;
   }
 
-  /* Force Correct Colors for Inactive Links */
-  #projectSidebar .sidebar-main-link:not(.sidebar-active),
-  #projectSidebar .sidebar-sub-link:not(.active):not(.text-primary) {
+  /* Override any potential color inheritance */
+  #projectSidebar .sidebar-link:not(.active),
+  #projectSidebar .sidebar-sublink:not(.active):not(.text-primary) {
     color: #6c757d !important;
   }
 
-  /* Ensure Active States Override Everything */
-  #projectSidebar .sidebar-main-link.sidebar-active,
-  #projectSidebar .sidebar-sub-link.active,
-  #projectSidebar .sidebar-sub-link.text-primary {
-    background-color: #e3f2fd !important;
-    color: #1976d2 !important;
-    border-left: 3px solid #1976d2 !important;
-    font-weight: 600 !important;
-  }
-
-  /* Icon Color Inheritance Protection */
-  #projectSidebar .sidebar-main-link.sidebar-active .sidebar-icon,
-  #projectSidebar .sidebar-sub-link.active .sidebar-sub-icon,
-  #projectSidebar .sidebar-sub-link.text-primary .sidebar-sub-icon {
-    color: #1976d2 !important;
-  }
-
-  #projectSidebar .sidebar-main-link:not(.sidebar-active) .sidebar-icon,
-  #projectSidebar .sidebar-sub-link:not(.active):not(.text-primary) .sidebar-sub-icon {
-    color: #6c757d !important;
+  /* Smooth transitions for better UX */
+  #projectSidebar .dropdown-arrow,
+  #projectSidebar .dropdown-menu-expandable {
+    transition: all 0.3s ease !important;
   }
 </style>

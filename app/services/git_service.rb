@@ -70,18 +70,6 @@ class GitService
     nil
   end
 
-
-  # def rollback_file_to_commit(file, commit_sha)
-  #   commit = @repo.lookup(commit_sha)
-  #   entry = commit.tree.path(File.join(file.path, file.name)) rescue nil
-  #   return false unless entry
-
-  #   blob = @repo.read(entry[:oid])
-  #   file_path = File.join(@repo.workdir, file.path, file.name)
-  #   File.write(file_path, blob.data)
-  #   true
-  # end
-
   def rollback_to_commit(sha)
     commit = @repo.lookup(sha)
     return { success: false, error: "Commit not found" } unless commit
@@ -114,9 +102,12 @@ class GitService
       author: author,
       committer: author,
       tree: tree_oid,
-      parents: [current_commit],
+      parents: [ current_commit ],
       update_ref: "HEAD"
     })
+    # Update the working directory to match the new commit
+    new_commit = @repo.lookup(commit_oid)
+    @repo.checkout_tree(new_commit.tree, strategy: :force)
 
     Commit.create!(
       user_id: user.id,
@@ -145,7 +136,7 @@ class GitService
     merge_index = @repo.merge_commits(target.target, source.target)
 
     if merge_index.conflicts?
-      return { success: false, conflict: true }
+      { success: false, conflict: true }
     else
       tree_oid = merge_index.write_tree(@repo)
 
@@ -154,7 +145,7 @@ class GitService
         author: author,
         committer: author,
         tree: tree_oid,
-        parents: [target.target, source.target],
+        parents: [ target.target, source.target ],
         update_ref: "HEAD"
       })
 

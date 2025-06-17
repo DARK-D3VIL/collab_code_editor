@@ -19,7 +19,7 @@ gem "cssbundling-rails"
 # Build JSON APIs with ease [https://github.com/rails/jbuilder]
 gem "jbuilder"
 # Use Redis adapter to run Action Cable in production
-gem "redis"
+gem "redis", "~> 5.0"
 gem "actioncable", "~> 7.0"
 
 # Use Kredis to get higher-level data types in Redis [https://github.com/rails/kredis]
@@ -66,7 +66,6 @@ gem "dotenv-rails"
 gem "devise"
 gem "rugged", "~> 1.9.0"
 gem "webpacker"
-gem "annotate"
 gem "bullet"
 gem "bootstrap"
 gem "simple_form"
@@ -76,4 +75,7 @@ gem "importmap-rails", "~> 2.1"
 gem "omniauth-github"
 gem "octokit" # For GitHub API
 gem "omniauth-rails_csrf_protection"
-gem "letter_opener", group: :development
+
+# Background job processing - Compatible with Ruby 3.1.4
+gem "sidekiq", "~> 7.3" # Use version 7.x which supports Ruby 3.1+
+gem "sidekiq-cron", "~> 1.12"

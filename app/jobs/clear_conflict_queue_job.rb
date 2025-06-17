@@ -8,7 +8,7 @@ class ClearConflictQueueJob < ApplicationJob
       branch: branch,
       file_path: path
     ).delete_all
-    
+
     Rails.logger.info("Deleted #{cleared_count} conflict queue entries for user #{user_id} in project #{project_id} on branch #{branch}")
   end
 end
