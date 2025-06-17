@@ -28,50 +28,117 @@ class GithubController < ApplicationController
       return
     end
 
-    # Create new Project
-    slug = SecureRandom.hex(3)
-    project = current_user.owned_projects.create!(
-      name: repo_name,
-      slug: slug,
-      github_url: clone_url
-    )
-
-    repo_path = Rails.root.join("storage", "projects", "project_#{project.id}")
-    FileUtils.mkdir_p(repo_path)
-
-    # Clone the repo into that path
-    Rugged::Repository.clone_at(clone_url, repo_path.to_s)
-
-    # Read the repo and fetch metadata from it
-    repo = Rugged::Repository.new(repo_path.to_s)
-    head = repo.head.target_id
-    branch_name = repo.head.name.sub("refs/heads/", "")
-
-    branch = project.branches.create!(
-      name: branch_name,
-      created_by: current_user.id
-    )
-
-    walker = Rugged::Walker.new(repo)
-    walker.push(head)
-    walker.each do |commit|
-      Commit.create!(
-        user: current_user,
-        branch: branch,
-        project: project,
-        message: commit.message,
-        sha: commit.oid,
-        parent_sha: commit.parents.first&.oid
+    begin
+      # Create new Project
+      slug = SecureRandom.hex(3)
+      project = current_user.owned_projects.create!(
+        name: repo_name,
+        slug: slug,
+        github_url: clone_url
       )
+
+      repo_path = Rails.root.join("storage", "projects", "project_#{project.id}")
+      FileUtils.mkdir_p(repo_path)
+
+      # Clone the repo into that path
+      Rugged::Repository.clone_at(clone_url, repo_path.to_s)
+
+      # Read the repo and fetch metadata from it
+      repo = Rugged::Repository.new(repo_path.to_s)
+
+      # Check if repository is empty
+      if repo.empty?
+        redirect_to github_repos_path, alert: "Cannot clone empty repository."
+        return
+      end
+
+      # Try to get the default branch - handle different scenarios
+      head = nil
+      branch_name = nil
+
+      begin
+        # Try to get HEAD reference
+        head = repo.head.target_id
+        branch_name = repo.head.name.sub("refs/heads/", "")
+      rescue Rugged::ReferenceError
+        # If HEAD doesn't exist or points to non-existent branch, find the default branch
+        branches = repo.branches.each_name(:local).to_a
+
+        if branches.empty?
+          redirect_to github_repos_path, alert: "Repository has no branches."
+          return
+        end
+
+        # Try common default branch names in order of preference
+        default_candidates = [ "main", "master", "develop", "dev" ]
+        branch_name = default_candidates.find { |name| branches.include?(name) } || branches.first
+
+        begin
+          branch_ref = repo.branches[branch_name]
+          head = branch_ref.target_id
+        rescue => e
+          redirect_to github_repos_path, alert: "Could not access repository branches: #{e.message}"
+          return
+        end
+      end
+
+      # Create branch record
+      branch = project.branches.create!(
+        name: branch_name,
+        created_by: current_user.id
+      )
+
+      # Walk through commits and save them
+      walker = Rugged::Walker.new(repo)
+      walker.push(head)
+
+      commit_count = 0
+      walker.each do |commit|
+        Commit.create!(
+          user: current_user,
+          branch: branch,
+          project: project,
+          message: commit.message,
+          sha: commit.oid,
+          parent_sha: commit.parents.first&.oid
+        )
+        commit_count += 1
+
+        # Limit commits to prevent timeout on large repos (optional)
+        break if commit_count >= 1000
+      end
+
+      # Create project membership
+      ProjectMembership.create!(
+        user: current_user,
+        project: project,
+        current_branch: branch
+      )
+
+      redirect_to project_project_files_path(project), notice: "Cloned project successfully! (#{commit_count} commits imported)"
+
+    rescue Rugged::NetworkError => e
+      # Handle network-related errors (invalid URL, access denied, etc.)
+      project&.destroy # Clean up if project was created
+      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
+      redirect_to github_repos_path, alert: "Failed to clone repository: #{e.message}"
+
+    rescue Rugged::OSError => e
+      # Handle file system errors
+      project&.destroy
+      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
+      redirect_to github_repos_path, alert: "File system error: #{e.message}"
+
+    rescue StandardError => e
+      # Handle any other errors
+      project&.destroy
+      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
+      redirect_to github_repos_path, alert: "An error occurred while cloning: #{e.message}"
+
+    ensure
+      # Clean up walker if it exists
+      walker&.reset if defined?(walker)
     end
-
-    ProjectMembership.create!(
-      user: current_user,
-      project: project,
-      current_branch: branch
-    )
-
-    redirect_to project_project_files_path(project), notice: "Cloned project successfully!"
   end
 
   # New method for the unified sync page

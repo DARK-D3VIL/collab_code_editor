@@ -117,23 +117,47 @@ class ProjectGitController < ApplicationController
 
       walker.reset
       walker.push(repo.branches[branch_name].target_id)
-      walker.sorting(Rugged::SORT_TOPO | Rugged::SORT_REVERSE)
+      # Use SORT_DATE to get commits in chronological order, SORT_REVERSE for newest first
+      walker.sorting(Rugged::SORT_DATE | Rugged::SORT_REVERSE)
 
       walker.each do |commit|
+        # Skip if we already have this commit (avoid duplicates across branches)
+        next if @graph_commits.any? { |c| c[:sha] == commit.oid }
+
+        commit_message = commit.message.lines.first&.chomp || "No commit message"
+        full_message = commit.message.chomp
+
         @graph_commits << {
           sha: commit.oid,
-          message: commit.message.lines.first.chomp,
+          message: commit_message,
           author: commit.author[:name],
-          time: commit.time,
+          time: commit.time.iso8601, # Use ISO format for JavaScript compatibility
           branch: branch_name,
-          parents: commit.parent_ids
+          parents: commit.parent_ids,
+          # Add additional useful information
+          author_email: commit.author[:email],
+          committer: commit.committer[:name],
+          committer_email: commit.committer[:email],
+          commit_time: commit.time.strftime("%Y-%m-%d %H:%M:%S"),
+          # Truncate long messages for better display
+          short_message: commit_message.length > 60 ? "#{commit_message[0..57]}..." : commit_message,
+          full_message: full_message,
+          # Add relative time for better UX
+          relative_time: time_ago(commit.time),
+          # Add commit stats if needed
+          additions: 0, # You can calculate this if needed
+          deletions: 0  # You can calculate this if needed
         }
       end
     end
 
+    # Remove duplicates based on SHA and sort by time (newest first for display)
     @graph_commits.uniq! { |c| c[:sha] }
-    @graph_commits = @graph_commits.sort_by { |c| c[:time] }
-    puts @graph_commits
+    @graph_commits = @graph_commits.sort_by { |c| Time.parse(c[:time]) }.reverse
+
+    puts "Total commits found: #{@graph_commits.size}"
+    puts "Latest commit: #{@graph_commits.first[:time] if @graph_commits.any?}"
+    puts @graph_commits.first(3) if @graph_commits.any? # Show first 3 commits for debugging
   end
 
   private
@@ -193,6 +217,30 @@ class ProjectGitController < ApplicationController
       email: current_user.email,
       time: Time.now
     }
+  end
+
+  def time_ago(time)
+    diff = Time.current - time
+
+    case diff
+    when 0..59
+      "just now"
+    when 60..3599
+      minutes = (diff / 60).round
+      "#{minutes} #{'minute'.pluralize(minutes)} ago"
+    when 3600..86399
+      hours = (diff / 3600).round
+      "#{hours} #{'hour'.pluralize(hours)} ago"
+    when 86400..2591999
+      days = (diff / 86400).round
+      "#{days} #{'day'.pluralize(days)} ago"
+    when 2592000..31535999
+      months = (diff / 2592000).round
+      "#{months} #{'month'.pluralize(months)} ago"
+    else
+      years = (diff / 31536000).round
+      "#{years} #{'year'.pluralize(years)} ago"
+    end
   end
 
   # Helper method to check if current user can write

@@ -1,75 +1,325 @@
-<nav id="sidebarMenu" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse border-end">
+<!-- Project Navigation Sidebar -->
+<nav id="projectSidebar" class="col-md-3 col-lg-2 d-md-block bg-white sidebar collapse border-end sidebar-protected">
   <div class="position-sticky p-4">
-    <h5 class="fw-bold text-primary mb-4">Project</h5>
+    <h5 class="fw-bold text-primary mb-4">Project Navigation</h5>
     <ul class="nav flex-column">
-      <!-- Main Project Navigation -->
       <% if controller_name.in?(%w[project_files project_git project_members github]) && defined?(@project) %>
+        
+        <!-- Files Section -->
         <li class="nav-item mb-2">
-          <%= link_to project_project_files_path(@project, path: ""), class: "nav-link d-flex align-items-center #{controller_name == 'project_files' ? 'active bg-light fw-semibold text-dark' : 'text-muted'}" do %>
-            <i class="bi bi-folder2-open me-2"></i> Files
+          <%= link_to project_project_files_path(@project, path: ""), class: "nav-link d-flex align-items-center sidebar-link #{controller_name == 'project_files' ? 'active' : ''}" do %>
+            <i class="bi bi-folder2-open me-2 sidebar-icon"></i> Files
           <% end %>
         </li>
         
-        <!-- Version Control Parent Item -->
-        <li class="nav-item mb-1">
-          <%= link_to project_git_path(@project), class: "nav-link d-flex align-items-center #{controller_name == 'project_git' ? 'active bg-light fw-semibold text-dark' : 'text-muted'}" do %>
-            <i class="bi bi-git me-2"></i> Version Control
-            <% if controller_name == 'project_git' %>
-              <i class="bi bi-chevron-down ms-auto small"></i>
-            <% else %>
-              <i class="bi bi-chevron-right ms-auto small"></i>
-            <% end %>
+        <!-- Version Control Section -->
+        <li class="nav-item mb-2">
+          <%= link_to project_git_path(@project), class: "nav-link d-flex align-items-center sidebar-link #{controller_name.in?(%w[project_git github]) ? 'active' : ''}" do %>
+            <i class="bi bi-git me-2 sidebar-icon"></i> Version Control
           <% end %>
         </li>
-
-        <!-- Git Panel Sub-navigation (only show when in git controller) -->
-        <% if controller_name.in?(%w[project_git github]) %>
-          <li class="nav-item">
-            <ul class="nav flex-column border-start border-2 border-light ms-3 ps-2">
-              <li class="nav-item mb-1">
-                <%= link_to project_git_path(@project), class: "#{sidebar_link_class('show')} nav-link d-flex align-items-center py-2 small" do %>
-                  <i class="bi bi-clock-history me-2 text-muted" style="font-size: 0.9rem;"></i> 
-                  <span>History</span>
-                <% end %>
-              </li>
-              <li class="nav-item mb-1">
-                <%= link_to project_git_branches_path(@project), class: "#{sidebar_link_class('branches')} nav-link d-flex align-items-center py-2 small" do %>
-                  <i class="bi bi-diagram-2 me-2 text-muted" style="font-size: 0.9rem;"></i> 
-                  <span>Branches</span>
-                <% end %>
-              </li>
-              <li class="nav-item mb-1">
-                <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: "#{sidebar_link_class('commits')} nav-link d-flex align-items-center py-2 small" do %>
-                  <i class="bi bi-list-ol me-2 text-muted" style="font-size: 0.9rem;"></i> 
-                  <span>Commits</span>
-                <% end %>
-              </li>
-              <li class="nav-item mb-1">
-                <%= link_to github_project_sync_path(@project), class: "#{sidebar_link_class('sync')} nav-link d-flex align-items-center py-2 small" do %>
-                  <i class="bi bi-github me-2 text-muted" style="font-size: 0.9rem;"></i> 
-                  <span>Sync</span>
-                  <% if !github_token_valid? %>
-                    <span class="badge bg-warning ms-auto" style="font-size: 0.55rem;">!</span>
-                  <% elsif @project&.github_url.blank? %>
-                    <span class="badge bg-info ms-auto" style="font-size: 0.55rem;">Link</span>
-                  <% else %>
-                    <span class="badge bg-success ms-auto" style="font-size: 0.55rem;">✓</span>
-                  <% end %>
-                <% end %>
-              </li>
-            </ul>
-          </li>
-        <% end %>
-
+        
         <!-- Members Section -->
         <% if current_user == @project.owner %>
-          <li class="nav-item mb-2 mt-2">
-            <%= link_to project_project_members_path(@project), class: "nav-link d-flex align-items-center #{controller_name == 'project_members' ? 'active bg-light fw-semibold text-dark' : 'text-muted'}" do %>
-              <i class="bi bi-people me-2"></i> Members
+          <li class="nav-item mb-2">
+            <%= link_to project_project_members_path(@project), class: "nav-link d-flex align-items-center sidebar-link #{controller_name == 'project_members' ? 'active' : ''}" do %>
+              <i class="bi bi-people me-2 sidebar-icon"></i> Members
             <% end %>
           </li>
         <% end %>
       <% end %>
+
+      <!-- Git Panel Section (existing functionality) -->
+      <% if controller_name.in?(%w[project_git github]) %>
+        <li class="nav-item mt-3 mb-1">
+          <hr class="my-2 sidebar-divider">
+          <small class="text-muted fw-bold sidebar-section-title">GIT PANEL</small>
+        </li>
+        <li class="nav-item mb-2">
+          <%= link_to project_git_path(@project), class: "#{sidebar_link_class('show')} nav-link d-flex align-items-center ps-3 sidebar-sublink" do %>
+            <i class="bi bi-clock-history me-2 sidebar-subicon"></i> History
+          <% end %>
+        </li>
+        <li class="nav-item mb-2">
+          <%= link_to project_git_branches_path(@project), class: "#{sidebar_link_class('branches')} nav-link d-flex align-items-center ps-3 sidebar-sublink" do %>
+            <i class="bi bi-diagram-2 me-2 sidebar-subicon"></i> Branches
+          <% end %>
+        </li>
+        <li class="nav-item mb-2">
+          <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: "#{sidebar_link_class('commits')} nav-link d-flex align-items-center ps-3 sidebar-sublink" do %>
+            <i class="bi bi-list-ol me-2 sidebar-subicon"></i> Commits
+          <% end %>
+        </li>
+       
+        <!-- GitHub Integration Section -->
+        <li class="nav-item mt-3 mb-1">
+          <hr class="my-2 sidebar-divider">
+          <small class="text-muted fw-bold sidebar-section-title">GITHUB</small>
+        </li>
+        <li class="nav-item mb-2">
+          <%= link_to github_project_sync_path(@project), class: "#{sidebar_link_class('sync')} nav-link d-flex align-items-center position-relative ps-3 sidebar-sublink" do %>
+            <i class="bi bi-github me-2 sidebar-subicon"></i>
+            <span>Sync</span>
+            <% if !github_token_valid? %>
+              <span class="badge bg-warning ms-auto sidebar-badge" style="font-size: 0.6rem;">!</span>
+            <% elsif @project&.github_url.blank? %>
+              <span class="badge bg-info ms-auto sidebar-badge" style="font-size: 0.6rem;">Link</span>
+            <% else %>
+              <span class="badge bg-success ms-auto sidebar-badge" style="font-size: 0.6rem;">✓</span>
+            <% end %>
+          <% end %>
+        </li>
+      <% end %>
     </ul>
   </div>
 </nav>
+
+<!-- Exact Replica Styling -->
+<style>
+  /* Sidebar Base Styling - Bulletproof Protection */
+  #projectSidebar.sidebar-protected {
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 100 !important;
+    padding-top: 48px !important; /* Adjust based on your header height */
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1) !important;
+    background-color: #ffffff !important;
+    border-right: 1px solid #dee2e6 !important;
+  }
+
+  /* Project Navigation Title */
+  #projectSidebar h5 {
+    font-weight: 700 !important;
+    color: #0d6efd !important;
+    margin-bottom: 1.5rem !important;
+    font-size: 1.25rem !important;
+  }
+
+  /* Main Navigation Links */
+  #projectSidebar .sidebar-link {
+    border-radius: 0.375rem !important;
+    margin-bottom: 0.25rem !important;
+    transition: all 0.2s ease !important;
+    color: #6c757d !important;
+    text-decoration: none !important;
+    padding: 0.75rem 1rem !important;
+    background-color: transparent !important;
+    border: none !important;
+    position: relative !important;
+  }
+
+  /* Main link hover */
+  #projectSidebar .sidebar-link:hover {
+    background-color: #f8f9fa !important;
+    color: #495057 !important;
+  }
+
+  /* Active main links with blue left border */
+  #projectSidebar .sidebar-link.active {
+    background-color: #e3f2fd !important;
+    color: #1976d2 !important;
+    border-left: 3px solid #1976d2 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Icons in main links */
+  #projectSidebar .sidebar-icon {
+    width: 16px !important;
+    text-align: center !important;
+    color: inherit !important;
+  }
+
+  /* Section Dividers */
+  #projectSidebar .sidebar-divider {
+    border-top: 1px solid #e9ecef !important;
+    margin: 0.5rem 0 !important;
+  }
+
+  /* Section Titles */
+  #projectSidebar .sidebar-section-title {
+    color: #6c757d !important;
+    font-weight: 700 !important;
+    font-size: 0.75rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  /* Sub-navigation Links */
+  #projectSidebar .sidebar-sublink {
+    border-radius: 0.375rem !important;
+    margin-bottom: 0.25rem !important;
+    transition: all 0.2s ease !important;
+    color: #6c757d !important;
+    text-decoration: none !important;
+    padding: 0.5rem 0.75rem !important;
+    padding-left: 3rem !important; /* Indented */
+    background-color: transparent !important;
+    border: none !important;
+    position: relative !important;
+    font-size: 0.9rem !important;
+  }
+
+  /* Sub-link hover */
+  #projectSidebar .sidebar-sublink:hover {
+    background-color: #f8f9fa !important;
+    color: #495057 !important;
+  }
+
+  /* Active sub-links with blue left border */
+  #projectSidebar .sidebar-sublink.active,
+  #projectSidebar .sidebar-sublink.text-primary {
+    background-color: #e3f2fd !important;
+    color: #1976d2 !important;
+    border-left: 3px solid #1976d2 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Icons in sub-links */
+  #projectSidebar .sidebar-subicon {
+    width: 16px !important;
+    text-align: center !important;
+    color: inherit !important;
+  }
+
+  /* Badges */
+  #projectSidebar .sidebar-badge {
+    font-size: 0.6rem !important;
+    padding: 0.25rem 0.4rem !important;
+    border-radius: 0.25rem !important;
+  }
+
+  /* Bootstrap utilities protection */
+  #projectSidebar .me-2 {
+    margin-right: 0.5rem !important;
+  }
+
+  #projectSidebar .ms-auto {
+    margin-left: auto !important;
+  }
+
+  #projectSidebar .mb-1 {
+    margin-bottom: 0.25rem !important;
+  }
+
+  #projectSidebar .mb-2 {
+    margin-bottom: 0.5rem !important;
+  }
+
+  #projectSidebar .mt-3 {
+    margin-top: 1rem !important;
+  }
+
+  #projectSidebar .my-2 {
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+
+  #projectSidebar .p-4 {
+    padding: 1.5rem !important;
+  }
+
+  #projectSidebar .ps-3 {
+    padding-left: 1rem !important;
+  }
+
+  /* Flex utilities */
+  #projectSidebar .d-flex {
+    display: flex !important;
+  }
+
+  #projectSidebar .align-items-center {
+    align-items: center !important;
+  }
+
+  #projectSidebar .flex-column {
+    flex-direction: column !important;
+  }
+
+  /* Navigation lists */
+  #projectSidebar .nav {
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #projectSidebar .nav-item {
+    list-style: none !important;
+  }
+
+  /* Position utilities */
+  #projectSidebar .position-sticky {
+    position: sticky !important;
+    top: 0 !important;
+  }
+
+  #projectSidebar .position-relative {
+    position: relative !important;
+  }
+
+  /* Bootstrap icons */
+  #projectSidebar .bi {
+    font-family: bootstrap-icons !important;
+    font-style: normal !important;
+    font-variant: normal !important;
+    text-transform: none !important;
+    line-height: 1 !important;
+    vertical-align: -0.125em !important;
+  }
+
+  /* Background and border utilities */
+  #projectSidebar.bg-white {
+    background-color: #ffffff !important;
+  }
+
+  #projectSidebar.border-end {
+    border-right: 1px solid #dee2e6 !important;
+  }
+
+  /* Text utilities */
+  #projectSidebar .text-muted {
+    color: #6c757d !important;
+  }
+
+  #projectSidebar .text-primary {
+    color: #0d6efd !important;
+  }
+
+  #projectSidebar .fw-bold {
+    font-weight: 700 !important;
+  }
+
+  /* Responsive behavior */
+  @media (max-width: 767.98px) {
+    #projectSidebar.sidebar-protected {
+      top: 5rem !important;
+    }
+    
+    #projectSidebar.collapse:not(.show) {
+      display: none !important;
+    }
+  }
+
+  /* Complete protection from external styles */
+  #projectSidebar,
+  #projectSidebar *,
+  .sidebar-protected,
+  .sidebar-protected * {
+    box-sizing: border-box !important;
+  }
+
+  /* Link protection */
+  #projectSidebar a,
+  #projectSidebar a:visited,
+  #projectSidebar a:link,
+  #projectSidebar a:hover {
+    text-decoration: none !important;
+  }
+
+  /* Override any potential color inheritance */
+  #projectSidebar .sidebar-link:not(.active),
+  #projectSidebar .sidebar-sublink:not(.active):not(.text-primary) {
+    color: #6c757d !important;
+  }
+</style>
