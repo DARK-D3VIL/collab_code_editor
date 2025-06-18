@@ -63,4 +63,34 @@ module ProjectFilesHelper
     ext = File.extname(file_name).delete(".").downcase
     !non_editable_extensions.include?(ext)
   end
+
+  def get_language_icon(language)
+    return 'fas fa-file-code' if language.blank?
+    
+    icons = {
+      'javascript' => 'fab fa-js-square',
+      'typescript' => 'fab fa-js-square',
+      'python' => 'fab fa-python',
+      'ruby' => 'fas fa-gem',
+      'java' => 'fab fa-java',
+      'php' => 'fab fa-php',
+      'html' => 'fab fa-html5',
+      'css' => 'fab fa-css3-alt',
+      'scss' => 'fab fa-sass',
+      'go' => 'fab fa-golang',
+      'rust' => 'fab fa-rust',
+      'swift' => 'fab fa-swift',
+      'csharp' => 'fab fa-microsoft',
+      'sql' => 'fas fa-database',
+      'json' => 'fas fa-brackets-curly',
+      'markdown' => 'fab fa-markdown',
+      'yaml' => 'fas fa-file-lines',
+      'docker' => 'fab fa-docker',
+      'bash' => 'fas fa-terminal',
+      'erb' => 'fas fa-gem'
+    }
+    
+    clean_language = language.to_s.downcase.strip
+    icons[clean_language] || 'fas fa-file-code'
+  end
 end
