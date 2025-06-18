@@ -3,6 +3,10 @@ class GithubController < ApplicationController
   before_action :set_project, only: [ :sync, :link_repository, :push_to_github, :unlink_repository ]
   before_action :authorize_project_access, only: [ :sync, :link_repository, :push_to_github, :unlink_repository ]
   before_action :authorize_writer!, only: [ :link_repository, :push_to_github, :unlink_repository ]
+
+  # Cache expensive GitHub API calls
+  GITHUB_CACHE_DURATION = 5.minutes
+
   def repos
     token = current_user.github_token
     unless token
@@ -10,156 +14,51 @@ class GithubController < ApplicationController
       return
     end
 
-    response = Faraday.get("https://api.github.com/user/repos", {}, {
-      Authorization: "token #{token}",
-      Accept: "application/vnd.github+json"
-    })
+    # Cache GitHub repos to avoid repeated API calls
+    cache_key = "github_repos_#{current_user.id}_#{Digest::MD5.hexdigest(token)}"
+    @repos = Rails.cache.fetch(cache_key, expires_in: GITHUB_CACHE_DURATION) do
+      fetch_github_repos(token)
+    end
 
-    @repos = JSON.parse(response.body)
+    if @repos.nil?
+      redirect_to root_path, alert: "Failed to fetch GitHub repositories."
+    end
   end
 
   def clone
     repo_name = params[:repo_name]
     clone_url = params[:clone_url]
 
-    # Check if the user already has a project with this repo name
-    if current_user.owned_projects.exists?(name: repo_name)
+    # Optimize project name check with exists? instead of loading records
+    if current_user.owned_projects.where(name: repo_name).exists?
       redirect_to github_repos_path, alert: "You've already cloned this repository."
       return
     end
 
-    begin
-      # Create new Project
-      slug = SecureRandom.hex(3)
-      project = current_user.owned_projects.create!(
-        name: repo_name,
-        slug: slug,
-        github_url: clone_url
-      )
+    # Process clone immediately using service
+    service = RepositoryCloneService.new(current_user, repo_name, clone_url, true)
+    result = service.call
 
-      repo_path = Rails.root.join("storage", "projects", "project_#{project.id}")
-      FileUtils.mkdir_p(repo_path)
-
-      # Clone the repo into that path
-      Rugged::Repository.clone_at(clone_url, repo_path.to_s)
-
-      # Read the repo and fetch metadata from it
-      repo = Rugged::Repository.new(repo_path.to_s)
-
-      # Check if repository is empty
-      if repo.empty?
-        redirect_to github_repos_path, alert: "Cannot clone empty repository."
-        return
-      end
-
-      # Try to get the default branch - handle different scenarios
-      head = nil
-      branch_name = nil
-
-      begin
-        # Try to get HEAD reference
-        head = repo.head.target_id
-        branch_name = repo.head.name.sub("refs/heads/", "")
-      rescue Rugged::ReferenceError
-        # If HEAD doesn't exist or points to non-existent branch, find the default branch
-        branches = repo.branches.each_name(:local).to_a
-
-        if branches.empty?
-          redirect_to github_repos_path, alert: "Repository has no branches."
-          return
-        end
-
-        # Try common default branch names in order of preference
-        default_candidates = [ "main", "master", "develop", "dev" ]
-        branch_name = default_candidates.find { |name| branches.include?(name) } || branches.first
-
-        begin
-          branch_ref = repo.branches[branch_name]
-          head = branch_ref.target_id
-        rescue => e
-          redirect_to github_repos_path, alert: "Could not access repository branches: #{e.message}"
-          return
-        end
-      end
-
-      # Create branch record
-      branch = project.branches.create!(
-        name: branch_name,
-        created_by: current_user.id
-      )
-
-      # Walk through commits and save them
-      walker = Rugged::Walker.new(repo)
-      walker.push(head)
-
-      commit_count = 0
-      walker.each do |commit|
-        Commit.create!(
-          user: current_user,
-          branch: branch,
-          project: project,
-          message: commit.message,
-          sha: commit.oid,
-          parent_sha: commit.parents.first&.oid
-        )
-        commit_count += 1
-
-        # Limit commits to prevent timeout on large repos (optional)
-        break if commit_count >= 1000
-      end
-
-      # Create project membership
-      ProjectMembership.create!(
-        user: current_user,
-        project: project,
-        current_branch: branch
-      )
-
-      redirect_to project_project_files_path(project), notice: "Cloned project successfully! (#{commit_count} commits imported)"
-
-    rescue Rugged::NetworkError => e
-      # Handle network-related errors (invalid URL, access denied, etc.)
-      project&.destroy # Clean up if project was created
-      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
-      redirect_to github_repos_path, alert: "Failed to clone repository: #{e.message}"
-
-    rescue Rugged::OSError => e
-      # Handle file system errors
-      project&.destroy
-      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
-      redirect_to github_repos_path, alert: "File system error: #{e.message}"
-
-    rescue StandardError => e
-      # Handle any other errors
-      project&.destroy
-      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
-      redirect_to github_repos_path, alert: "An error occurred while cloning: #{e.message}"
-
-    ensure
-      # Clean up walker if it exists
-      walker&.reset if defined?(walker)
+    if result.success?
+      redirect_to project_project_files_path(result.project),
+                  notice: "Repository cloned successfully!"
+    else
+      redirect_to github_repos_path, alert: "Failed to clone repository: #{result.error}"
     end
   end
 
-  # New method for the unified sync page
   def sync
+    # Optimize queries with includes and select
     @current_branch = current_branch_for_project
     @github_connected = github_token_valid?
     @github_repos = []
 
     if @github_connected && @project.github_url.blank?
-      # Fetch user's GitHub repositories
-      token = current_user.github_token
-      begin
-        response = Faraday.get("https://api.github.com/user/repos", {}, {
-          Authorization: "token #{token}",
-          Accept: "application/vnd.github+json"
-        })
-        @github_repos = JSON.parse(response.body) if response.success?
-      rescue => e
-        Rails.logger.error "Failed to fetch GitHub repos: #{e.message}"
-        @github_connected = false
-      end
+      # Use cached repos if available
+      cache_key = "github_repos_#{current_user.id}"
+      @github_repos = Rails.cache.fetch(cache_key, expires_in: GITHUB_CACHE_DURATION) do
+        fetch_github_repos(current_user.github_token)
+      end || []
     end
   end
 
@@ -171,7 +70,12 @@ class GithubController < ApplicationController
       return
     end
 
+    # Use update! with validation
     @project.update!(github_url: github_url)
+
+    # Clear related caches
+    clear_project_caches(@project)
+
     redirect_to github_project_sync_path(@project), notice: "Repository linked successfully!"
   end
 
@@ -186,312 +90,183 @@ class GithubController < ApplicationController
       return
     end
 
+    # Process push in background job
     current_branch = current_branch_for_project
-    result = push_project_to_github(@project, current_branch)
+    PushToGithubJob.perform_later(
+      project_id: @project.id,
+      branch_id: current_branch.id,
+      user_id: current_user.id
+    )
 
-    if result[:success]
-      redirect_to github_project_sync_path(@project), notice: "Code pushed to GitHub successfully!"
-    else
-      redirect_to github_project_sync_path(@project), alert: "Failed to push to GitHub: #{result[:error]}"
-    end
+    redirect_to github_project_sync_path(@project),
+                notice: "Push to GitHub started. You'll be notified when it's complete."
   end
 
   def unlink_repository
     @project.update!(github_url: nil)
+    clear_project_caches(@project)
     redirect_to github_project_sync_path(@project), notice: "Repository unlinked successfully!"
   end
 
   def clone_public
     github_url = params[:github_url]
 
-    # Validate GitHub URL format
-    unless github_url.present? && github_url.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+/)
+    unless valid_github_url?(github_url)
       redirect_to new_project_path, alert: "Please provide a valid GitHub repository URL."
       return
     end
 
-    # Extract repository name from URL
-    match = github_url.match(/github\.com\/[^\/]+\/([^\/\.]+)/)
-    repo_name = match ? match[1] : "imported-project"
+    repo_name = extract_repo_name(github_url)
+    unique_repo_name = generate_unique_repo_name(repo_name)
 
-    # Check if the user already has a project with this repo name
-    counter = 1
-    original_name = repo_name
-    while current_user.owned_projects.exists?(name: repo_name)
-      repo_name = "#{original_name}-#{counter}"
-      counter += 1
-    end
+    # Process clone immediately using service
+    service = RepositoryCloneService.new(current_user, unique_repo_name, github_url, false)
+    result = service.call
 
-    begin
-      # Create new Project
-      slug = SecureRandom.hex(3)
-      project = current_user.owned_projects.create!(
-        name: repo_name,
-        slug: slug,
-        github_url: github_url
-      )
-
-      repo_path = Rails.root.join("storage", "projects", "project_#{project.id}")
-      FileUtils.mkdir_p(repo_path)
-
-      # Clone the repo into that path (public repos don't need authentication)
-      Rugged::Repository.clone_at(github_url, repo_path.to_s)
-
-      # Read the repo and fetch metadata from it
-      repo = Rugged::Repository.new(repo_path.to_s)
-
-      # Check if repository is empty
-      if repo.empty?
-        project.destroy
-        FileUtils.rm_rf(repo_path)
-        redirect_to new_project_path, alert: "Cannot clone empty repository."
-        return
-      end
-
-      # Try to get the default branch - handle different scenarios
-      head = nil
-      branch_name = nil
-
-      begin
-        # Try to get HEAD reference
-        head = repo.head.target_id
-        branch_name = repo.head.name.sub("refs/heads/", "")
-      rescue Rugged::ReferenceError
-        # If HEAD doesn't exist or points to non-existent branch, find the default branch
-        branches = repo.branches.each_name(:local).to_a
-
-        if branches.empty?
-          project.destroy
-          FileUtils.rm_rf(repo_path)
-          redirect_to new_project_path, alert: "Repository has no branches."
-          return
-        end
-
-        # Try common default branch names in order of preference
-        default_candidates = [ "main", "master", "develop", "dev" ]
-        branch_name = default_candidates.find { |name| branches.include?(name) } || branches.first
-
-        begin
-          branch_ref = repo.branches[branch_name]
-          head = branch_ref.target_id
-        rescue => e
-          project.destroy
-          FileUtils.rm_rf(repo_path)
-          redirect_to new_project_path, alert: "Could not access repository branches: #{e.message}"
-          return
-        end
-      end
-
-      # Create all branches from the repository
-      created_branches = {}
-      default_branch = nil
-
-      repo.branches.each_name(:local) do |branch_name_iter|
-        branch_obj = repo.branches[branch_name_iter]
-        next unless branch_obj
-
-        db_branch = project.branches.create!(
-          name: branch_name_iter,
-          created_by: current_user.id
-        )
-
-        created_branches[branch_name_iter] = db_branch
-        default_branch = db_branch if branch_name_iter == branch_name
-      end
-
-      # If no default branch was set, use the first one
-      default_branch ||= created_branches.values.first
-
-      # Walk through commits for each branch and save them
-      total_commits = 0
-      created_branches.each do |branch_name_iter, db_branch|
-        begin
-          branch_ref = repo.branches[branch_name_iter]
-          next unless branch_ref
-
-          walker = Rugged::Walker.new(repo)
-          walker.push(branch_ref.target_id)
-
-          commit_count = 0
-          walker.each do |commit|
-            # Check if commit already exists (in case of shared history)
-            next if Commit.exists?(project: project, sha: commit.oid)
-
-            Commit.create!(
-              user: current_user,
-              branch: db_branch,
-              project: project,
-              message: commit.message,
-              sha: commit.oid,
-              parent_sha: commit.parents.first&.oid
-            )
-            commit_count += 1
-            total_commits += 1
-
-            # Limit commits to prevent timeout on large repos
-            break if commit_count >= 1000
-          end
-
-          walker.reset
-        rescue => e
-          Rails.logger.error "Error processing branch #{branch_name_iter}: #{e.message}"
-          # Continue with other branches
-        end
-      end
-
-      # Create project membership
-      ProjectMembership.create!(
-        user: current_user,
-        project: project,
-        current_branch: default_branch
-      )
-
-      redirect_to project_project_files_path(project),
-                  notice: "Successfully cloned public repository! (#{total_commits} commits imported across #{created_branches.size} branches)"
-
-    rescue Rugged::NetworkError => e
-      # Handle network-related errors (invalid URL, repository not found, etc.)
-      project&.destroy
-      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
-
-      error_message = if e.message.include?("not found")
-        "Repository not found. Please check the URL or make sure the repository is public."
-      elsif e.message.include?("access")
-        "Access denied. The repository might be private or the URL is incorrect."
-      else
-        "Failed to clone repository: #{e.message}"
-      end
-
-      redirect_to new_project_path, alert: error_message
-
-    rescue Rugged::OSError => e
-      # Handle file system errors
-      project&.destroy
-      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
-      redirect_to new_project_path, alert: "File system error: #{e.message}"
-
-    rescue StandardError => e
-      # Handle any other errors
-      project&.destroy
-      FileUtils.rm_rf(repo_path) if repo_path && Dir.exist?(repo_path)
-      Rails.logger.error "Public clone error: #{e.message}\n#{e.backtrace.join("\n")}"
-      redirect_to new_project_path, alert: "An error occurred while cloning: #{e.message}"
-
-    ensure
-      # Clean up any open resources
-      walker&.reset if defined?(walker)
+    if result.success?
+      redirect_to project_project_files_path(result.project),
+                  notice: "Repository cloned successfully!"
+    else
+      redirect_to new_project_path, alert: "Failed to clone repository: #{result.error}"
     end
   end
 
   private
 
   def set_project
-    @project = Project.find(params[:project_id])
+    # Optimize with select to avoid loading unnecessary columns
+    @project = current_user.accessible_projects
+                          .select(:id, :name, :slug, :github_url, :owner_id)
+                          .find(params[:project_id])
+  rescue ActiveRecord::RecordNotFound
+    redirect_to projects_path, alert: "Project not found."
   end
 
   def authorize_project_access
-    membership = @project.project_memberships.find_by(user_id: current_user.id)
-    unless @project.owner == current_user || (membership&.active?)
+    # Use optimized query with joins instead of separate queries
+    unless has_project_access?(@project)
       redirect_to projects_path, alert: "You are not authorized to access this project."
     end
   end
 
+  def has_project_access?(project)
+    return true if project.owner_id == current_user.id
+
+    # Cache project membership check using the active_members scope
+    cache_key = "project_access_#{current_user.id}_#{project.id}"
+    Rails.cache.fetch(cache_key, expires_in: 10.minutes) do
+      project.project_memberships.active_members.where(user_id: current_user.id).exists?
+    end
+  end
+
   def current_branch_for_project
-    current_user.current_branch_for(@project) || default_branch_for(@project)
+    # Optimize with includes and caching
+    cache_key = "current_branch_#{current_user.id}_#{@project.id}"
+    Rails.cache.fetch(cache_key, expires_in: 30.minutes) do
+      membership = current_user.project_memberships
+                             .includes(:current_branch)
+                             .find_by(project_id: @project.id)
+
+      membership&.current_branch || default_branch_for(@project)
+    end
   end
 
   def default_branch_for(project)
-    project.branches.find_by(name: "main") || project.branches.first
+    # Cache default branch lookup
+    cache_key = "default_branch_#{project.id}"
+    Rails.cache.fetch(cache_key, expires_in: 1.hour) do
+      project.branches.where(name: "main").first ||
+      project.branches.order(:created_at).first
+    end
   end
 
   def github_token_valid?
     return false unless current_user.github_token.present?
 
-    # Test the token by making a simple API call
+    # Cache token validation to avoid repeated API calls
+    cache_key = "github_token_valid_#{current_user.id}_#{Digest::MD5.hexdigest(current_user.github_token)}"
+    Rails.cache.fetch(cache_key, expires_in: 15.minutes) do
+      validate_github_token(current_user.github_token)
+    end
+  end
+
+  def validate_github_token(token)
     begin
-      response = Faraday.get("https://api.github.com/user", {}, {
-        Authorization: "token #{current_user.github_token}",
-        Accept: "application/vnd.github+json"
-      })
+      response = faraday_connection.get("/user") do |req|
+        req.headers["Authorization"] = "token #{token}"
+        req.headers["Accept"] = "application/vnd.github+json"
+        req.options.timeout = 10 # Add timeout
+      end
       response.success?
-    rescue
+    rescue Faraday::Error
       false
     end
   end
 
-  def current_membership
-    @current_membership ||= current_user.project_memberships.find_by(project_id: @project.id)
+  def fetch_github_repos(token)
+    begin
+      response = faraday_connection.get("/user/repos") do |req|
+        req.headers["Authorization"] = "token #{token}"
+        req.headers["Accept"] = "application/vnd.github+json"
+        req.params["per_page"] = 100 # Increase page size
+        req.params["sort"] = "updated"
+        req.options.timeout = 15
+      end
+
+      return JSON.parse(response.body) if response.success?
+    rescue Faraday::Error => e
+      Rails.logger.error "GitHub API error: #{e.message}"
+    end
+    nil
   end
 
-  def push_project_to_github(project, branch)
-    begin
-      repo_path = Rails.root.join("storage", "projects", "project_#{project.id}")
-
-      unless Dir.exist?(repo_path.join(".git"))
-        return { success: false, error: "Local git repository not found" }
-      end
-
-      repo = Rugged::Repository.new(repo_path.to_s)
-
-      # Parse GitHub URL to get owner and repo name
-      github_url = project.github_url
-      match = github_url.match(/github\.com[\/:]([^\/]+)\/([^\/\.]+)/)
-
-      unless match
-        return { success: false, error: "Invalid GitHub URL format" }
-      end
-
-      owner, repo_name = match[1], match[2]
-
-      # Set up remote with authentication
-      token = current_user.github_token
-      authenticated_url = "https://#{token}:x-oauth-basic@github.com/#{owner}/#{repo_name}.git"
-
-      # Check if remote exists, if not create it
-      begin
-        remote = repo.remotes["origin"]
-      rescue Rugged::ConfigError
-        remote = repo.remotes.create("origin", authenticated_url)
-      end
-
-      # Update remote URL with token
-      repo.remotes.set_url("origin", authenticated_url)
-
-      # Push current branch
-      branch_ref = "refs/heads/#{branch.name}"
-
-      begin
-        remote = repo.remotes["origin"]
-
-        # Fix: Correct credentials format for Rugged
-        credentials = Rugged::Credentials::UserPassword.new(
-          username: token,
-          password: "x-oauth-basic"
-        )
-
-        # Push with correct syntax
-        remote.push([ branch_ref ], credentials: credentials)
-
-        { success: true }
-      rescue Rugged::NetworkError => e
-        { success: false, error: "Network error: #{e.message}" }
-      rescue Rugged::ReferenceError => e
-        { success: false, error: "Reference error: #{e.message}" }
-      end
-
-    rescue => e
-      Rails.logger.error "GitHub push error: #{e.message}"
-      { success: false, error: e.message }
+  def faraday_connection
+    @faraday_connection ||= Faraday.new(
+      url: "https://api.github.com",
+      request: { timeout: 15 }
+    ) do |faraday|
+      faraday.adapter Faraday.default_adapter
     end
+  end
+
+  def current_user_membership
+    @current_user_membership ||= @project.project_memberships
+                                        .select(:id, :user_id, :project_id, :active, :role)
+                                        .find_by(user_id: current_user.id)
   end
 
   def authorize_writer!
     membership = current_user_membership
-    unless @project.owner == current_user || (membership&.active? && membership&.can_write?)
-      redirect_to project_project_files_path(@project), alert: "You need writer permission to perform this action."
+    unless @project.owner_id == current_user.id || (membership&.active? && membership&.can_write?)
+      redirect_to project_project_files_path(@project),
+                  alert: "You need writer permission to perform this action."
     end
   end
-  def current_user_membership
-    @current_user_membership ||= @project.project_memberships.find_by(user_id: current_user.id)
+
+  def valid_github_url?(url)
+    url.present? && url.match(/^https:\/\/github\.com\/[^\/]+\/[^\/]+/)
+  end
+
+  def extract_repo_name(github_url)
+    match = github_url.match(/github\.com\/[^\/]+\/([^\/\.]+)/)
+    match ? match[1] : "imported-project"
+  end
+
+  def generate_unique_repo_name(base_name)
+    return base_name unless current_user.owned_projects.where(name: base_name).exists?
+
+    counter = 1
+    loop do
+      candidate_name = "#{base_name}-#{counter}"
+      break candidate_name unless current_user.owned_projects.where(name: candidate_name).exists?
+      counter += 1
+    end
+  end
+
+  def clear_project_caches(project)
+    # Clear relevant caches when project is updated
+    Rails.cache.delete("default_branch_#{project.id}")
+    Rails.cache.delete("current_branch_#{current_user.id}_#{project.id}")
+    Rails.cache.delete("project_access_#{current_user.id}_#{project.id}")
   end
 end

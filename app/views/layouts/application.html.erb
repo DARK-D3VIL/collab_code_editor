@@ -23,22 +23,23 @@
   </head>
 
   <body>
-    <!-- Navbar -->
+    <!-- Enhanced Navbar -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm sticky-top">
-      <div class="container">
+      <div class="container-fluid px-4">
         <!-- Brand -->
         <%= link_to root_path, class: "navbar-brand fw-bold text-secondary d-flex align-items-center" do %>
-          <i class="bi bi-terminal me-2 text-muted"></i>Collab Editor
+          <i class="bi bi-terminal me-2 text-primary"></i>
+          <span class="text-dark">Collab Editor</span>
         <% end %>
 
-        <!-- Toggler for mobile -->
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
+        <!-- Mobile Toggle -->
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarContent">
           <span class="navbar-toggler-icon"></span>
         </button>
 
-        <!-- Nav Links -->
+        <!-- Navbar Content -->
         <div class="collapse navbar-collapse" id="navbarContent">
-          <!-- Left-side Navigation -->
+          <!-- Left Navigation -->
           <ul class="navbar-nav me-auto mb-2 mb-lg-0">
             <% if current_user %>
               <li class="nav-item">
@@ -47,48 +48,76 @@
             <% end %>
           </ul>
 
-          <!-- Center Search Bar (only visible when logged in) -->
+          <!-- Enhanced Search Bar (only visible when logged in) -->
           <% if current_user %>
-            <div class="mx-auto d-none d-lg-block" style="max-width: 400px; width: 100%;">
-              <div class="input-group">
-                <input type="text" id="globalSearch" class="form-control" placeholder="Search on this page..." autocomplete="off">
-                <button class="btn btn-outline-secondary" type="button" id="searchButton">
-                  <i class="bi bi-search"></i>
-                </button>
-                <button class="btn btn-outline-secondary d-none" type="button" id="clearSearch">
-                  <i class="bi bi-x-lg"></i>
-                </button>
-              </div>
-              <!-- Search Results Dropdown -->
-              <div id="searchResults" class="dropdown-menu w-100 shadow-lg" style="max-height: 400px; overflow-y: auto; display: none;">
-                <div id="searchResultsContent">
-                  <div class="dropdown-item-text text-muted text-center py-3">
-                    <i class="bi bi-search me-2"></i>Start typing to search...
+            <div class="search-container mx-auto" style="max-width: 480px; width: 100%;">
+              <div class="search-wrapper position-relative">
+                <div class="search-input-container">
+                  <div class="search-icon-wrapper">
+                    <i class="bi bi-search search-icon"></i>
+                  </div>
+                  <input 
+                    type="text" 
+                    id="enhancedSearch" 
+                    class="search-input" 
+                    placeholder="Search projects, files, content..."
+                    autocomplete="off"
+                    spellcheck="false"
+                  >
+                  <div class="search-actions">
+                    <button class="search-clear-btn d-none" type="button" id="clearSearchBtn">
+                      <i class="bi bi-x-lg"></i>
+                    </button>
+                    <div class="search-shortcut d-none d-lg-flex">
+                      <kbd>⌘K</kbd>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Search Results Dropdown -->
+                <div id="searchDropdown" class="search-dropdown">
+                  <div class="search-dropdown-content" id="searchContent">
+                    <div class="search-empty-state">
+                      <div class="empty-state-content">
+                        <i class="bi bi-search empty-state-icon"></i>
+                        <span class="empty-state-text">Start typing to search across your workspace</span>
+                        <div class="search-tips">
+                          <small class="text-muted">Try searching for projects, files, or content</small>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           <% end %>
 
-          <!-- Right-side Auth Controls -->
+          <!-- Right Navigation -->
           <ul class="navbar-nav ms-auto align-items-center">
             <% if current_user %>
               <!-- Mobile Search Button -->
               <li class="nav-item d-lg-none">
-                <button class="nav-link btn btn-link text-muted" data-bs-toggle="collapse" data-bs-target="#mobileSearch">
-                  <i class="bi bi-search"></i>
+                <button class="btn btn-outline-light nav-search-toggle" data-bs-toggle="collapse" data-bs-target="#mobileSearchCollapse">
+                  <i class="bi bi-search text-muted"></i>
                 </button>
               </li>
               
               <!-- User Dropdown -->
               <li class="nav-item dropdown">
                 <a class="nav-link dropdown-toggle d-flex align-items-center text-muted" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  <i class="bi bi-person-circle me-1 text-muted"></i>
-                  <span class="fw-medium"><%= current_user.username || current_user.email %></span>
+                  <div class="user-avatar me-2">
+                    <i class="bi bi-person-circle fs-5"></i>
+                  </div>
+                  <span class="fw-medium d-none d-md-inline"><%= current_user.username || current_user.email %></span>
                 </a>
-                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
+                  <li><a class="dropdown-item" href="#"><i class="bi bi-clock-history me-2"></i>Pending Requests</a></li>
+                  <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>Settings</a></li>
+                  <li><hr class="dropdown-divider"></li>
                   <li>
-                    <%= button_to "Sign Out", destroy_user_session_path, method: :delete, class: "dropdown-item text-danger" %>
+                    <%= button_to destroy_user_session_path, method: :delete, class: "dropdown-item text-danger", style: "border: none; background: none; width: 100%; text-align: left;" do %>
+                      <i class="bi bi-box-arrow-right me-2"></i>Sign Out
+                    <% end %>
                   </li>
                 </ul>
               </li>
@@ -100,24 +129,38 @@
           </ul>
         </div>
 
-        <!-- Mobile Search Bar -->
+        <!-- Mobile Search Collapse -->
         <% if current_user %>
-          <div class="collapse w-100 d-lg-none" id="mobileSearch">
-            <div class="mt-3">
-              <div class="input-group">
-                <input type="text" id="mobileGlobalSearch" class="form-control" placeholder="Search on this page..." autocomplete="off">
-                <button class="btn btn-outline-secondary" type="button" id="mobileSearchButton">
-                  <i class="bi bi-search"></i>
-                </button>
-                <button class="btn btn-outline-secondary d-none" type="button" id="mobileClearSearch">
-                  <i class="bi bi-x-lg"></i>
-                </button>
-              </div>
-              <!-- Mobile Search Results -->
-              <div id="mobileSearchResults" class="dropdown-menu w-100 shadow-lg" style="max-height: 300px; overflow-y: auto; display: none; position: static; float: none;">
-                <div id="mobileSearchResultsContent">
-                  <div class="dropdown-item-text text-muted text-center py-3">
-                    <i class="bi bi-search me-2"></i>Start typing to search...
+          <div class="collapse d-lg-none" id="mobileSearchCollapse">
+            <div class="container-fluid px-4 py-3 border-top bg-light">
+              <div class="search-wrapper position-relative">
+                <div class="search-input-container">
+                  <div class="search-icon-wrapper">
+                    <i class="bi bi-search search-icon"></i>
+                  </div>
+                  <input 
+                    type="text" 
+                    id="mobileSearch" 
+                    class="search-input" 
+                    placeholder="Search projects, files, content..."
+                    autocomplete="off"
+                  >
+                  <div class="search-actions">
+                    <button class="search-clear-btn d-none" type="button" id="mobileClearBtn">
+                      <i class="bi bi-x-lg"></i>
+                    </button>
+                  </div>
+                </div>
+                
+                <!-- Mobile Search Results -->
+                <div id="mobileSearchDropdown" class="search-dropdown mobile-dropdown">
+                  <div class="search-dropdown-content" id="mobileSearchContent">
+                    <div class="search-empty-state">
+                      <div class="empty-state-content">
+                        <i class="bi bi-search empty-state-icon"></i>
+                        <span class="empty-state-text">Start typing to search</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -142,89 +185,990 @@
       <% end %>
     </div>
 
+    <!-- Main Content -->
     <div style="padding-top: 1.5rem;">
       <%= yield %>
-    </div
+    </div>
 
-    <!-- Client-side Search Script -->
+    <!-- Enhanced Search Styles -->
+    <style>
+      /* CSS Variables */
+      :root {
+        --search-bg: #f8f9fa;
+        --search-border: #e9ecef;
+        --search-focus: #0d6efd;
+        --search-hover: #e3f2fd;
+        --search-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        --search-radius: 12px;
+      }
+
+      /* Search Container */
+      .search-container {
+        position: relative;
+        z-index: 1000;
+      }
+
+      .search-wrapper {
+        position: relative;
+      }
+
+      /* Search Input Container */
+      .search-input-container {
+        position: relative;
+        display: flex;
+        align-items: center;
+        background: var(--search-bg);
+        border: 2px solid transparent;
+        border-radius: var(--search-radius);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        height: 44px;
+      }
+
+      .search-input-container:hover {
+        background: #e9ecef;
+        border-color: var(--search-border);
+      }
+
+      .search-input-container:focus-within {
+        background: white;
+        border-color: var(--search-focus);
+        box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.1);
+        transform: translateY(-1px);
+      }
+
+      /* Search Icon */
+      .search-icon-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+      }
+
+      .search-icon {
+        color: #6c757d;
+        font-size: 16px;
+        transition: color 0.3s ease;
+      }
+
+      .search-input-container:focus-within .search-icon {
+        color: var(--search-focus);
+      }
+
+      /* Search Input */
+      .search-input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        padding: 0 8px;
+        font-size: 14px;
+        font-weight: 400;
+        color: #495057;
+        outline: none;
+        min-width: 0;
+      }
+
+      .search-input::placeholder {
+        color: #6c757d;
+        font-weight: 400;
+      }
+
+      .search-input:focus::placeholder {
+        color: #adb5bd;
+      }
+
+      /* Search Actions */
+      .search-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-right: 8px;
+        flex-shrink: 0;
+      }
+
+      /* Clear Button */
+      .search-clear-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: #dc3545;
+        color: white;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 12px;
+      }
+
+      .search-clear-btn:hover {
+        background: #c82333;
+        transform: scale(1.05);
+      }
+
+      /* Keyboard Shortcut */
+      .search-shortcut {
+        align-items: center;
+        gap: 2px;
+      }
+
+      .search-shortcut kbd {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 2px 6px;
+        font-size: 11px;
+        color: #6c757d;
+        font-weight: 500;
+        min-width: 20px;
+        text-align: center;
+      }
+
+      /* Search Dropdown */
+      .search-dropdown {
+        position: absolute;
+        top: calc(100% + 8px);
+        left: 0;
+        right: 0;
+        background: white;
+        border: 1px solid var(--search-border);
+        border-radius: var(--search-radius);
+        box-shadow: var(--search-shadow);
+        z-index: 1050;
+        display: none;
+        max-height: 420px;
+        overflow: hidden;
+      }
+
+      .search-dropdown.show {
+        display: block;
+        animation: searchDropdownShow 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      @keyframes searchDropdownShow {
+        from {
+          opacity: 0;
+          transform: translateY(-8px) scale(0.98);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0) scale(1);
+        }
+      }
+
+      /* Mobile Dropdown */
+      .mobile-dropdown {
+        position: static;
+        margin-top: 12px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Search Dropdown Content */
+      .search-dropdown-content {
+        max-height: 420px;
+        overflow-y: auto;
+      }
+
+      /* Empty State */
+      .search-empty-state {
+        padding: 32px 24px;
+        text-align: center;
+      }
+
+      .empty-state-content {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .empty-state-icon {
+        font-size: 24px;
+        color: #adb5bd;
+        opacity: 0.8;
+      }
+
+      .empty-state-text {
+        color: #6c757d;
+        font-size: 14px;
+        font-weight: 500;
+      }
+
+      .search-tips {
+        margin-top: 8px;
+      }
+
+      /* Search Results */
+      .search-results-header {
+        padding: 12px 20px 8px;
+        border-bottom: 1px solid #f1f3f4;
+        background: #fafbfc;
+      }
+
+      .search-results-count {
+        font-size: 12px;
+        font-weight: 600;
+        color: #495057;
+        margin: 0;
+      }
+
+      .search-category {
+        border-bottom: 1px solid #f1f3f4;
+      }
+
+      .search-category:last-child {
+        border-bottom: none;
+      }
+
+      .search-category-header {
+        padding: 12px 20px 6px;
+        background: #fafbfc;
+        border-bottom: 1px solid #f1f3f4;
+      }
+
+      .search-category-title {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #868e96;
+        margin: 0;
+      }
+
+      /* Search Result Items */
+      .search-result-item {
+        display: block;
+        padding: 12px 20px;
+        border: none;
+        background: none;
+        width: 100%;
+        text-align: left;
+        text-decoration: none;
+        color: #495057;
+        transition: all 0.2s ease;
+        cursor: pointer;
+        border-left: 3px solid transparent;
+      }
+
+      .search-result-item:hover {
+        background: var(--search-hover);
+        border-left-color: var(--search-focus);
+        color: #495057;
+        text-decoration: none;
+      }
+
+      .search-result-item:focus {
+        background: var(--search-hover);
+        border-left-color: var(--search-focus);
+        outline: none;
+        box-shadow: inset 0 0 0 2px rgba(13, 110, 253, 0.1);
+      }
+
+      .search-result-content {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .search-result-main {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .search-result-title {
+        font-weight: 600;
+        font-size: 14px;
+        line-height: 1.3;
+        margin-bottom: 2px;
+        color: #212529;
+      }
+
+      .search-result-description {
+        font-size: 12px;
+        color: #6c757d;
+        line-height: 1.4;
+        margin: 0;
+      }
+
+      .search-result-meta {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        flex-shrink: 0;
+      }
+
+      .search-result-type {
+        font-size: 10px;
+        background: #f8f9fa;
+        color: #6c757d;
+        padding: 2px 8px;
+        border-radius: 10px;
+        text-transform: uppercase;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+      }
+
+      .search-result-icon {
+        width: 16px;
+        height: 16px;
+        opacity: 0.7;
+      }
+
+      /* Highlight Styling */
+      mark {
+        background: linear-gradient(120deg, #fff3cd 0%, #ffeaa7 100%);
+        color: #856404;
+        padding: 1px 2px;
+        border-radius: 2px;
+        font-weight: 600;
+      }
+
+      /* Loading State */
+      .search-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        color: #6c757d;
+        font-size: 14px;
+        gap: 12px;
+      }
+
+      .search-loading::after {
+        content: '';
+        width: 16px;
+        height: 16px;
+        border: 2px solid #f3f3f3;
+        border-top: 2px solid var(--search-focus);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Text-level highlighting for precise matches */
+      .search-text-highlight {
+        background: linear-gradient(120deg, #fff3cd 0%, #ffeaa7 100%);
+        color: #856404;
+        padding: 1px 3px;
+        border-radius: 3px;
+        font-weight: 600;
+        box-shadow: 0 1px 3px rgba(133, 100, 4, 0.1);
+        animation: textHighlightPulse 1.5s ease-in-out;
+      }
+
+      @keyframes textHighlightPulse {
+        0% { 
+          background: linear-gradient(120deg, #fff3cd 0%, #ffeaa7 100%);
+          transform: scale(1);
+        }
+        50% { 
+          background: linear-gradient(120deg, #ffeaa7 0%, #fff3cd 100%);
+          transform: scale(1.02);
+        }
+        100% { 
+          background: linear-gradient(120deg, #fff3cd 0%, #ffeaa7 100%);
+          transform: scale(1);
+        }
+      }
+
+      /* Container highlighting for scroll-to feedback only */
+      .search-highlight {
+        position: relative;
+        outline: 2px solid rgba(13, 110, 253, 0.5);
+        outline-offset: 2px;
+        border-radius: 6px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.1);
+        animation: highlightPulse 2s ease-in-out;
+      }
+
+      .search-highlight::before {
+        content: '';
+        position: absolute;
+        top: -4px;
+        left: -4px;
+        right: -4px;
+        bottom: -4px;
+        background: linear-gradient(45deg, rgba(13, 110, 253, 0.1), rgba(13, 110, 253, 0.05));
+        border-radius: 8px;
+        z-index: -1;
+        opacity: 0.7;
+      }
+
+      @keyframes highlightPulse {
+        0% { 
+          outline-color: rgba(13, 110, 253, 0.5);
+          box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.1);
+        }
+        50% { 
+          outline-color: rgba(13, 110, 253, 0.8);
+          box-shadow: 0 0 0 6px rgba(13, 110, 253, 0.15);
+          transform: scale(1.005);
+        }
+        100% { 
+          outline-color: rgba(13, 110, 253, 0.5);
+          box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.1);
+        }
+      }
+
+      /* Enhanced highlighting for different element types */
+      .search-highlight.card {
+        outline-width: 3px;
+        outline-offset: 4px;
+        border-radius: 12px;
+      }
+
+      .search-highlight.btn {
+        outline-offset: 3px;
+        border-radius: 8px;
+      }
+
+      .search-highlight h1,
+      .search-highlight h2,
+      .search-highlight h3,
+      .search-highlight h4,
+      .search-highlight h5,
+      .search-highlight h6 {
+        outline-width: 3px;
+        outline-offset: 3px;
+      }
+
+      /* Smooth fade-out for highlights */
+      .search-highlight-fade {
+        outline-color: rgba(13, 110, 253, 0.2) !important;
+        box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.05) !important;
+        transition: all 0.5s ease-out;
+      }
+
+      /* Mobile Styles */
+      @media (max-width: 991.98px) {
+        .search-container {
+          max-width: none !important;
+        }
+
+        .search-input {
+          font-size: 16px; /* Prevent zoom on iOS */
+        }
+
+        .search-shortcut {
+          display: none !important;
+        }
+
+        #mobileSearchCollapse {
+          border-top: 1px solid #e9ecef;
+          padding-top: 0;
+          margin-top: 8px;
+        }
+
+        .search-input-container {
+          border-radius: 10px;
+        }
+
+        .search-dropdown {
+          border-radius: 10px;
+        }
+      }
+
+      /* Scrollbar Styling */
+      .search-dropdown-content::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .search-dropdown-content::-webkit-scrollbar-track {
+        background: #f8f9fa;
+      }
+
+      .search-dropdown-content::-webkit-scrollbar-thumb {
+        background: #dee2e6;
+        border-radius: 3px;
+      }
+
+      .search-dropdown-content::-webkit-scrollbar-thumb:hover {
+        background: #adb5bd;
+      }
+
+      /* Focus Management */
+      .nav-search-toggle:focus {
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+      }
+
+      /* User Avatar */
+      .user-avatar {
+        transition: transform 0.2s ease;
+      }
+
+      .dropdown-toggle:hover .user-avatar {
+        transform: scale(1.1);
+      }
+    </style>
+
+    <!-- Enhanced Search JavaScript -->
     <script>
-      class ClientSideSearch {
+      class EnhancedSearch {
         constructor() {
           this.searchableElements = [];
           this.originalStyles = new Map();
           this.currentHighlights = [];
-          this.searchResultsVisible = false;
+          this.searchTimeout = null;
+          this.isSearching = false;
+          this.focusedResultIndex = -1;
           
           this.init();
+          this.setupKeyboardShortcuts();
         }
 
         init() {
-          // Initialize both desktop and mobile search
-          this.initializeSearch('globalSearch', 'searchResults', 'searchResultsContent', 'clearSearch');
-          this.initializeSearch('mobileGlobalSearch', 'mobileSearchResults', 'mobileSearchResultsContent', 'mobileClearSearch');
+          // Initialize desktop search
+          this.initializeSearch('enhancedSearch', 'searchDropdown', 'searchContent', 'clearSearchBtn');
           
-          // Update searchable elements when page loads or changes
+          // Initialize mobile search
+          this.initializeSearch('mobileSearch', 'mobileSearchDropdown', 'mobileSearchContent', 'mobileClearBtn');
+          
+          // Update searchable elements
           this.updateSearchableElements();
           
-          // Re-initialize on Turbo navigation
-          document.addEventListener('turbo:load', () => {
-            this.updateSearchableElements();
+          // Handle dynamic content
+          this.observeContentChanges();
+        }
+
+        setupKeyboardShortcuts() {
+          document.addEventListener('keydown', (e) => {
+            // Cmd/Ctrl + K to focus search
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+              e.preventDefault();
+              const searchInput = document.getElementById('enhancedSearch');
+              if (searchInput) {
+                searchInput.focus();
+              }
+            }
           });
         }
 
-        initializeSearch(inputId, resultsId, contentId, clearId) {
+        initializeSearch(inputId, dropdownId, contentId, clearId) {
           const searchInput = document.getElementById(inputId);
-          const searchResults = document.getElementById(resultsId);
-          const searchResultsContent = document.getElementById(contentId);
+          const searchDropdown = document.getElementById(dropdownId);
+          const searchContent = document.getElementById(contentId);
           const clearButton = document.getElementById(clearId);
 
           if (!searchInput) return;
 
-          let searchTimeout;
-
+          // Input events
           searchInput.addEventListener('input', (e) => {
-            clearTimeout(searchTimeout);
-            searchTimeout = setTimeout(() => {
-              this.performSearch(e.target.value, searchResults, searchResultsContent, clearButton);
-            }, 300);
+            this.handleSearchInput(e.target.value, searchDropdown, searchContent, clearButton);
           });
 
           searchInput.addEventListener('focus', () => {
             if (searchInput.value.trim()) {
-              searchResults.style.display = 'block';
+              this.showDropdown(searchDropdown);
             }
+            this.updateShortcutVisibility(false);
           });
 
-          // Clear search functionality
+          searchInput.addEventListener('blur', () => {
+            // Delay hiding to allow click events on results
+            setTimeout(() => {
+              if (!searchDropdown.matches(':hover')) {
+                this.hideDropdown(searchDropdown);
+              }
+            }, 150);
+            this.updateShortcutVisibility(true);
+          });
+
+          // Clear button
           if (clearButton) {
             clearButton.addEventListener('click', () => {
-              this.clearSearch(searchInput, searchResults, searchResultsContent, clearButton);
+              this.clearSearch(searchInput, searchDropdown, searchContent, clearButton);
             });
           }
 
-          // Close results when clicking outside
+          // Keyboard navigation
+          searchInput.addEventListener('keydown', (e) => {
+            this.handleKeyNavigation(e, searchDropdown, searchContent);
+          });
+
+          // Click outside to close
           document.addEventListener('click', (e) => {
-            if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
-              searchResults.style.display = 'none';
+            if (!e.target.closest('.search-wrapper')) {
+              this.hideDropdown(searchDropdown);
             }
           });
 
-          // Handle escape key
-          searchInput.addEventListener('keydown', (e) => {
+          // Escape key
+          document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') {
-              this.clearSearch(searchInput, searchResults, searchResultsContent, clearButton);
+              this.hideDropdown(searchDropdown);
+              searchInput.blur();
             }
           });
+        }
+
+        updateShortcutVisibility(show) {
+          const shortcut = document.querySelector('.search-shortcut');
+          if (shortcut) {
+            shortcut.style.opacity = show ? '1' : '0';
+          }
+        }
+
+        handleSearchInput(query, dropdown, content, clearButton) {
+          // Clear previous timeout
+          if (this.searchTimeout) {
+            clearTimeout(this.searchTimeout);
+          }
+
+          // Clear highlights
+          this.clearHighlights();
+
+          // Manage clear button visibility
+          if (query.trim()) {
+            clearButton.classList.remove('d-none');
+          } else {
+            clearButton.classList.add('d-none');
+            this.hideDropdown(dropdown);
+            this.showEmptyState(content);
+            return;
+          }
+
+          // Show loading for queries >= 2 characters
+          if (query.length >= 2) {
+            this.showLoadingState(content);
+            this.showDropdown(dropdown);
+          }
+
+          // Debounced search
+          this.searchTimeout = setTimeout(() => {
+            this.performSearch(query, dropdown, content);
+          }, 200);
+        }
+
+        performSearch(query, dropdown, content) {
+          query = query.trim().toLowerCase();
+          
+          if (query.length < 2) {
+            this.hideDropdown(dropdown);
+            return;
+          }
+
+          this.isSearching = true;
+          this.focusedResultIndex = -1;
+
+          // Filter results
+          const results = this.searchableElements
+            .filter(item => item.text.includes(query))
+            .slice(0, 30); // Limit for performance
+
+          // Display results
+          this.displayResults(results, query, dropdown, content);
+          
+          // Highlight matches on page
+          this.highlightMatches(query);
+          
+          this.isSearching = false;
+        }
+
+        displayResults(results, query, dropdown, content) {
+          if (results.length === 0) {
+            this.showNoResults(content, query);
+            return;
+          }
+
+          const groupedResults = this.groupResults(results);
+          let html = `
+            <div class="search-results-header">
+              <p class="search-results-count">Found ${results.length} result${results.length !== 1 ? 's' : ''}</p>
+            </div>
+          `;
+          
+          Object.entries(groupedResults).forEach(([category, items]) => {
+            if (items.length > 0) {
+              html += `
+                <div class="search-category">
+                  <div class="search-category-header">
+                    <p class="search-category-title">${category}</p>
+                  </div>
+              `;
+              
+              items.slice(0, 6).forEach((result, index) => {
+                const highlightedTitle = this.highlightQuery(result.originalText, query);
+                const description = this.getElementDescription(result.element, query);
+                const icon = this.getElementIcon(result.element);
+                const type = this.getElementContext(result.element);
+                
+                html += `
+                  <button class="search-result-item" data-element-id="${this.getElementId(result.element)}" tabindex="0">
+                    <div class="search-result-content">
+                      <div class="search-result-main">
+                        <div class="search-result-title">${highlightedTitle}</div>
+                        ${description ? `<p class="search-result-description">${description}</p>` : ''}
+                      </div>
+                      <div class="search-result-meta">
+                        <span class="search-result-type">${type}</span>
+                        ${icon ? `<i class="bi ${icon} search-result-icon"></i>` : ''}
+                      </div>
+                    </div>
+                  </button>
+                `;
+              });
+              
+              if (items.length > 6) {
+                html += `
+                  <div class="search-empty-state" style="padding: 12px 20px;">
+                    <span class="empty-state-text" style="font-size: 12px;">... and ${items.length - 6} more ${category.toLowerCase()} results</span>
+                  </div>
+                `;
+              }
+              
+              html += '</div>';
+            }
+          });
+          
+          content.innerHTML = html;
+          
+          // Add click handlers
+          content.querySelectorAll('.search-result-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+              e.preventDefault();
+              const elementId = e.currentTarget.dataset.elementId;
+              this.scrollToElement(elementId);
+              this.hideDropdown(dropdown);
+            });
+          });
+        }
+
+        groupResults(results) {
+          const groups = {
+            'Projects': [],
+            'Navigation': [],
+            'Content': [],
+            'Interface': []
+          };
+
+          results.forEach(result => {
+            const element = result.element;
+            
+            if (element.closest('.project-card')) {
+              groups['Projects'].push(result);
+            } else if (element.closest('.navbar, .nav-link, .breadcrumb')) {
+              groups['Navigation'].push(result);
+            } else if (element.tagName && ['H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'P'].includes(element.tagName)) {
+              groups['Content'].push(result);
+            } else {
+              groups['Interface'].push(result);
+            }
+          });
+
+          // Remove empty groups
+          Object.keys(groups).forEach(key => {
+            if (groups[key].length === 0) {
+              delete groups[key];
+            }
+          });
+
+          return groups;
+        }
+
+        getElementIcon(element) {
+          if (element.closest('.project-card')) {
+            const iconElement = element.closest('.project-card').querySelector('.project-icon i');
+            return iconElement ? iconElement.className.split(' ').find(cls => cls.startsWith('bi-')) : 'bi-folder';
+          }
+          if (element.closest('.navbar')) return 'bi-navigation';
+          if (element.tagName && ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(element.tagName)) return 'bi-type-h1';
+          if (element.tagName === 'P') return 'bi-text-paragraph';
+          if (element.closest('.btn')) return 'bi-cursor';
+          return null;
+        }
+
+        getElementDescription(element, query) {
+          // For project cards, get the description
+          if (element.closest('.project-card')) {
+            const description = element.closest('.project-card').querySelector('.card-text');
+            if (description && description !== element) {
+              let text = description.textContent.trim();
+              if (text.length > 80) {
+                text = text.substring(0, 80) + '...';
+              }
+              return this.highlightQuery(text, query);
+            }
+          }
+          
+          // For other elements, try to get contextual information
+          const text = this.getElementText(element);
+          if (text.length > 60) {
+            let preview = text.substring(0, 60) + '...';
+            return this.highlightQuery(preview, query);
+          }
+          
+          return null;
+        }
+
+        highlightQuery(text, query) {
+          if (!text || !query) return text;
+          
+          const regex = new RegExp(`(${this.escapeRegExp(query)})`, 'gi');
+          return text.replace(regex, '<mark>$1</mark>');
+        }
+
+        escapeRegExp(string) {
+          return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        highlightMatches(query) {
+          // Clear any existing highlights first
+          this.clearTextHighlights();
+          
+          this.searchableElements.forEach(item => {
+            if (item.text.includes(query.toLowerCase())) {
+              this.highlightTextInElement(item.element, query);
+            }
+          });
+        }
+
+        highlightTextInElement(element, query) {
+          // Skip if element contains other elements we don't want to modify
+          if (element.querySelector('script, style, input, textarea, select')) {
+            return;
+          }
+
+          const walker = document.createTreeWalker(
+            element,
+            NodeFilter.SHOW_TEXT,
+            {
+              acceptNode: function(node) {
+                // Skip if parent is script, style, or other excluded elements
+                if (node.parentElement.matches('script, style, input, textarea, select, code, pre')) {
+                  return NodeFilter.FILTER_REJECT;
+                }
+                // Only process text nodes that contain our query
+                if (node.textContent.toLowerCase().includes(query.toLowerCase())) {
+                  return NodeFilter.FILTER_ACCEPT;
+                }
+                return NodeFilter.FILTER_REJECT;
+              }
+            }
+          );
+
+          const textNodes = [];
+          let node;
+          while (node = walker.nextNode()) {
+            textNodes.push(node);
+          }
+
+          // Process text nodes to add highlighting
+          textNodes.forEach(textNode => {
+            this.highlightTextNode(textNode, query);
+          });
+        }
+
+        highlightTextNode(textNode, query) {
+          const text = textNode.textContent;
+          const regex = new RegExp(`(${this.escapeRegExp(query)})`, 'gi');
+          
+          if (regex.test(text)) {
+            const highlightedHTML = text.replace(regex, '<span class="search-text-highlight">$1</span>');
+            
+            // Create a temporary container to parse the HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = highlightedHTML;
+            
+            // Replace the text node with highlighted spans
+            const parent = textNode.parentNode;
+            const fragment = document.createDocumentFragment();
+            
+            while (tempDiv.firstChild) {
+              fragment.appendChild(tempDiv.firstChild);
+            }
+            
+            parent.replaceChild(fragment, textNode);
+            
+            // Track highlighted elements for cleanup
+            parent.querySelectorAll('.search-text-highlight').forEach(span => {
+              this.currentHighlights.push(span);
+            });
+          }
+        }
+
+        clearTextHighlights() {
+          // Remove all highlighted spans and restore original text
+          document.querySelectorAll('.search-text-highlight').forEach(span => {
+            const parent = span.parentNode;
+            parent.replaceChild(document.createTextNode(span.textContent), span);
+            parent.normalize(); // Merge adjacent text nodes
+          });
+          this.currentHighlights = [];
+        }
+
+        highlightElement(element) {
+          // This method is now only used for scroll-to highlighting
+          if (!this.originalStyles.has(element)) {
+            this.originalStyles.set(element, {
+              outline: element.style.outline,
+              outlineOffset: element.style.outlineOffset,
+              boxShadow: element.style.boxShadow,
+              transition: element.style.transition,
+              transform: element.style.transform
+            });
+          }
+
+          // Add gentle outline highlight for the container
+          element.style.outline = '2px solid rgba(13, 110, 253, 0.3)';
+          element.style.outlineOffset = '2px';
+          element.style.borderRadius = '4px';
+          element.style.transition = 'all 0.3s ease';
+          
+          this.currentHighlights.push(element);
+          
+          // Remove after 2 seconds
+          setTimeout(() => {
+            const original = this.originalStyles.get(element);
+            if (original) {
+              element.style.outline = original.outline;
+              element.style.outlineOffset = original.outlineOffset;
+              element.style.boxShadow = original.boxShadow;
+              element.style.transition = original.transition;
+              element.style.transform = original.transform;
+            }
+          }, 2000);
+        }
+
+        clearHighlights() {
+          // Clear text highlights
+          this.clearTextHighlights();
+          
+          // Clear any element highlights
+          this.currentHighlights.forEach(element => {
+            if (element.classList) {
+              element.classList.remove('search-highlight', 'search-highlight-fade');
+            }
+            
+            // Restore original styles if needed
+            const original = this.originalStyles.get(element);
+            if (original) {
+              element.style.outline = original.outline;
+              element.style.outlineOffset = original.outlineOffset;
+              element.style.boxShadow = original.boxShadow;
+              element.style.transition = original.transition;
+              element.style.transform = original.transform;
+            }
+          });
+          this.currentHighlights = [];
         }
 
         updateSearchableElements() {
           this.searchableElements = [];
           
-          // Define selectors for different page types
           const selectors = [
             // Project cards
             '.project-card .card-title',
-            '.project-card .card-body p',
+            '.project-card .card-text',
             
             // File and folder names
             '.folder-row span',
@@ -254,14 +1198,13 @@
           ];
 
           selectors.forEach(selector => {
-            const elements = document.querySelectorAll(selector);
-            elements.forEach(element => {
+            document.querySelectorAll(selector).forEach(element => {
               const text = this.getElementText(element);
-              if (text && text.length > 1) {
+              if (text && text.trim().length > 1) {
                 this.searchableElements.push({
                   element: element,
                   text: text.toLowerCase(),
-                  originalText: text
+                  originalText: text.trim()
                 });
               }
             });
@@ -269,12 +1212,8 @@
         }
 
         getElementText(element) {
-          // For input elements, get placeholder text
-          if (element.placeholder) {
-            return element.placeholder;
-          }
+          if (element.placeholder) return element.placeholder;
           
-          // For other elements, get text content but exclude script/style elements
           const clone = element.cloneNode(true);
           const scripts = clone.querySelectorAll('script, style');
           scripts.forEach(script => script.remove());
@@ -282,173 +1221,55 @@
           return clone.textContent || clone.innerText || '';
         }
 
-        performSearch(query, searchResults, searchResultsContent, clearButton) {
-          query = query.trim().toLowerCase();
-          
-          // Clear previous highlights
-          this.clearHighlights();
-          
-          if (query.length < 2) {
-            searchResults.style.display = 'none';
-            clearButton.classList.add('d-none');
-            return;
-          }
-
-          clearButton.classList.remove('d-none');
-          
-          const results = this.searchableElements.filter(item => 
-            item.text.includes(query)
-          );
-
-          this.displayResults(results, query, searchResults, searchResultsContent);
-          this.highlightMatches(query);
-        }
-
-        displayResults(results, query, searchResults, searchResultsContent) {
-          if (results.length === 0) {
-            searchResultsContent.innerHTML = `
-              <div class="dropdown-item-text text-muted text-center py-3">
-                <i class="bi bi-search me-2"></i>No results found for "${query}"
-              </div>
-            `;
-          } else {
-            const groupedResults = this.groupResults(results);
-            let html = `<div class="dropdown-header">Found ${results.length} results</div>`;
-            
-            Object.keys(groupedResults).forEach(category => {
-              if (groupedResults[category].length > 0) {
-                html += `<h6 class="dropdown-header">${category}</h6>`;
-                groupedResults[category].slice(0, 5).forEach(result => {
-                  const highlightedText = this.highlightQuery(result.originalText, query);
-                  html += `
-                    <a href="#" class="dropdown-item search-result-item" data-element-id="${this.getElementId(result.element)}">
-                      <div class="d-flex justify-content-between align-items-center">
-                        <span>${highlightedText}</span>
-                        <small class="text-muted">${this.getElementContext(result.element)}</small>
-                      </div>
-                    </a>
-                  `;
-                });
-                
-                if (groupedResults[category].length > 5) {
-                  html += `<div class="dropdown-item-text text-muted small">... and ${groupedResults[category].length - 5} more</div>`;
-                }
-              }
-            });
-            
-            searchResultsContent.innerHTML = html;
-            
-            // Add click handlers to scroll to elements
-            searchResultsContent.querySelectorAll('.search-result-item').forEach(item => {
-              item.addEventListener('click', (e) => {
-                e.preventDefault();
-                const elementId = e.currentTarget.dataset.elementId;
-                this.scrollToElement(elementId);
-                searchResults.style.display = 'none';
-              });
-            });
-          }
-          
-          searchResults.style.display = 'block';
-        }
-
-        groupResults(results) {
-          const groups = {
-            'Projects': [],
-            'Files & Folders': [],
-            'Content': [],
-            'Navigation': [],
-            'Other': []
-          };
-
-          results.forEach(result => {
-            const element = result.element;
-            
-            if (element.closest('.project-card')) {
-              groups['Projects'].push(result);
-            } else if (element.closest('.folder-row, .file-row')) {
-              groups['Files & Folders'].push(result);
-            } else if (element.closest('.nav-link, .breadcrumb')) {
-              groups['Navigation'].push(result);
-            } else if (element.tagName && ['P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(element.tagName)) {
-              groups['Content'].push(result);
-            } else {
-              groups['Other'].push(result);
-            }
-          });
-
-          return groups;
-        }
-
-        highlightQuery(text, query) {
-          const regex = new RegExp(`(${query})`, 'gi');
-          return text.replace(regex, '<mark>$1</mark>');
-        }
-
-        highlightMatches(query) {
-          this.searchableElements.forEach(item => {
-            if (item.text.includes(query)) {
-              this.highlightElement(item.element, query);
-            }
-          });
-        }
-
-        highlightElement(element, query) {
-          // Store original style
-          if (!this.originalStyles.has(element)) {
-            this.originalStyles.set(element, {
-              backgroundColor: element.style.backgroundColor,
-              transition: element.style.transition
-            });
-          }
-
-          // Add highlight
-          element.style.backgroundColor = '#fff3cd';
-          element.style.transition = 'background-color 0.3s ease';
-          this.currentHighlights.push(element);
-        }
-
-        clearHighlights() {
-          this.currentHighlights.forEach(element => {
-            const original = this.originalStyles.get(element);
-            if (original) {
-              element.style.backgroundColor = original.backgroundColor;
-              element.style.transition = original.transition;
-            }
-          });
-          this.currentHighlights = [];
+        getElementContext(element) {
+          if (element.closest('.project-card')) return 'Project';
+          if (element.closest('.folder-row')) return 'Folder';
+          if (element.closest('.file-row')) return 'File';
+          if (element.closest('table')) return 'Table';
+          if (element.closest('.nav')) return 'Navigation';
+          if (element.closest('.card')) return 'Card';
+          if (element.closest('.btn')) return 'Button';
+          if (element.tagName && ['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(element.tagName)) return 'Heading';
+          if (element.tagName === 'P') return 'Content';
+          if (element.closest('.badge')) return 'Badge';
+          return 'Page';
         }
 
         getElementId(element) {
-          // Create a unique identifier for the element
           if (element.id) return element.id;
           
-          // Create a temporary ID based on element position
           const rect = element.getBoundingClientRect();
-          return `search_${Math.round(rect.top)}_${Math.round(rect.left)}`;
+          const tagName = element.tagName.toLowerCase();
+          const textContent = element.textContent.trim().substring(0, 20).replace(/\s+/g, '_');
+          
+          return `search_${tagName}_${Math.round(rect.top)}_${textContent}`;
         }
 
         scrollToElement(elementId) {
-          // Find element by ID or by position
           let element = document.getElementById(elementId);
           
           if (!element) {
-            // If no ID, find by approximate position
-            const coords = elementId.replace('search_', '').split('_');
-            if (coords.length === 2) {
-              const targetTop = parseInt(coords[0]);
-              const targetLeft = parseInt(coords[1]);
+            // Find element by characteristics
+            const parts = elementId.split('_');
+            if (parts.length >= 3) {
+              const tagName = parts[1];
+              const targetTop = parseInt(parts[2]);
+              const textHint = parts.slice(3).join('_');
               
-              // Find closest element
               let closestElement = null;
-              let closestDistance = Infinity;
+              let closestScore = Infinity;
               
               this.searchableElements.forEach(item => {
-                const rect = item.element.getBoundingClientRect();
-                const distance = Math.abs(rect.top - targetTop) + Math.abs(rect.left - targetLeft);
-                if (distance < closestDistance) {
-                  closestDistance = distance;
-                  closestElement = item.element;
+                if (item.element.tagName.toLowerCase() === tagName) {
+                  const rect = item.element.getBoundingClientRect();
+                  const positionScore = Math.abs(rect.top - targetTop);
+                  const textScore = textHint ? (item.text.includes(textHint.toLowerCase()) ? 0 : 100) : 0;
+                  const totalScore = positionScore + textScore;
+                  
+                  if (totalScore < closestScore) {
+                    closestScore = totalScore;
+                    closestElement = item.element;
+                  }
                 }
               });
               
@@ -457,134 +1278,235 @@
           }
           
           if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Calculate offset for navbar
+            const navbar = document.querySelector('.navbar');
+            const navbarHeight = navbar ? navbar.offsetHeight : 0;
+            const elementTop = element.getBoundingClientRect().top + window.pageYOffset - navbarHeight - 24;
             
-            // Add a temporary pulse effect
-            const originalTransform = element.style.transform;
-            element.style.transform = 'scale(1.05)';
-            element.style.transition = 'transform 0.3s ease';
+            // Smooth scroll
+            window.scrollTo({
+              top: Math.max(0, elementTop),
+              behavior: 'smooth'
+            });
             
+            // Visual feedback with enhanced outline
             setTimeout(() => {
-              element.style.transform = originalTransform;
-            }, 600);
+              element.style.outline = '3px solid #0d6efd';
+              element.style.outlineOffset = '6px';
+              element.style.borderRadius = '8px';
+              element.style.transition = 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)';
+              element.style.boxShadow = '0 0 0 10px rgba(13, 110, 253, 0.1)';
+              element.style.transform = 'scale(1.02)';
+              
+              setTimeout(() => {
+                element.style.outline = '';
+                element.style.outlineOffset = '';
+                element.style.borderRadius = '';
+                element.style.boxShadow = '';
+                element.style.transform = '';
+              }, 2500);
+            }, 400);
           }
         }
 
-        getElementContext(element) {
-          // Provide context about where the element is located
-          if (element.closest('.project-card')) return 'Project';
-          if (element.closest('.folder-row')) return 'Folder';
-          if (element.closest('.file-row')) return 'File';
-          if (element.closest('table')) return 'Table';
-          if (element.closest('.nav')) return 'Navigation';
-          if (element.closest('.card')) return 'Card';
-          return 'Page';
+        handleKeyNavigation(e, dropdown, content) {
+          const items = content.querySelectorAll('.search-result-item');
+          
+          switch (e.key) {
+            case 'ArrowDown':
+              e.preventDefault();
+              this.focusedResultIndex = Math.min(this.focusedResultIndex + 1, items.length - 1);
+              this.updateFocusedResult(items);
+              break;
+              
+            case 'ArrowUp':
+              e.preventDefault();
+              this.focusedResultIndex = Math.max(this.focusedResultIndex - 1, -1);
+              this.updateFocusedResult(items);
+              break;
+              
+            case 'Enter':
+              e.preventDefault();
+              if (this.focusedResultIndex >= 0 && items[this.focusedResultIndex]) {
+                items[this.focusedResultIndex].click();
+              }
+              break;
+              
+            case 'Escape':
+              e.preventDefault();
+              this.hideDropdown(dropdown);
+              e.target.blur();
+              break;
+          }
         }
 
-        clearSearch(searchInput, searchResults, searchResultsContent, clearButton) {
-          searchInput.value = '';
-          searchResults.style.display = 'none';
-          clearButton.classList.add('d-none');
-          this.clearHighlights();
-          
-          searchResultsContent.innerHTML = `
-            <div class="dropdown-item-text text-muted text-center py-3">
-              <i class="bi bi-search me-2"></i>Start typing to search...
+        updateFocusedResult(items) {
+          items.forEach((item, index) => {
+            if (index === this.focusedResultIndex) {
+              item.focus();
+              item.scrollIntoView({ block: 'nearest' });
+            }
+          });
+        }
+
+        showDropdown(dropdown) {
+          dropdown.style.display = 'block';
+          setTimeout(() => dropdown.classList.add('show'), 10);
+        }
+
+        hideDropdown(dropdown) {
+          dropdown.classList.remove('show');
+          setTimeout(() => {
+            if (!dropdown.classList.contains('show')) {
+              dropdown.style.display = 'none';
+            }
+          }, 200);
+        }
+
+        showEmptyState(content) {
+          content.innerHTML = `
+            <div class="search-empty-state">
+              <div class="empty-state-content">
+                <i class="bi bi-search empty-state-icon"></i>
+                <span class="empty-state-text">Start typing to search across your workspace</span>
+                <div class="search-tips">
+                  <small class="text-muted">Try searching for projects, files, or content</small>
+                </div>
+              </div>
             </div>
           `;
         }
+
+        showLoadingState(content) {
+          content.innerHTML = `
+            <div class="search-loading">
+              <span>Searching...</span>
+            </div>
+          `;
+        }
+
+        showNoResults(content, query) {
+          content.innerHTML = `
+            <div class="search-empty-state">
+              <div class="empty-state-content">
+                <i class="bi bi-search empty-state-icon"></i>
+                <span class="empty-state-text">No results found for "${this.escapeHtml(query)}"</span>
+                <div class="search-tips">
+                  <small class="text-muted">Try different keywords or check spelling</small>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+
+        escapeHtml(text) {
+          const div = document.createElement('div');
+          div.textContent = text;
+          return div.innerHTML;
+        }
+
+        clearSearch(input, dropdown, content, clearButton) {
+          input.value = '';
+          this.hideDropdown(dropdown);
+          clearButton.classList.add('d-none');
+          this.clearHighlights();
+          this.showEmptyState(content);
+          this.focusedResultIndex = -1;
+          input.focus();
+        }
+
+        observeContentChanges() {
+          const observer = new MutationObserver((mutations) => {
+            let shouldRefresh = false;
+            
+            mutations.forEach((mutation) => {
+              if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                mutation.addedNodes.forEach((node) => {
+                  if (node.nodeType === Node.ELEMENT_NODE && 
+                      (node.matches && node.matches('.project-card, .nav-link, h1, h2, h3, h4, h5, h6, p, .btn, .badge') ||
+                       node.querySelector && node.querySelector('.project-card, .nav-link, h1, h2, h3, h4, h5, h6, p, .btn, .badge'))) {
+                    shouldRefresh = true;
+                  }
+                });
+              }
+            });
+            
+            if (shouldRefresh) {
+              clearTimeout(this.refreshTimeout);
+              this.refreshTimeout = setTimeout(() => {
+                this.updateSearchableElements();
+              }, 300);
+            }
+          });
+
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true
+          });
+        }
+
+        // Public methods
+        refresh() {
+          this.updateSearchableElements();
+        }
+
+        reset() {
+          this.clearHighlights();
+          const inputs = ['enhancedSearch', 'mobileSearch'];
+          const dropdowns = ['searchDropdown', 'mobileSearchDropdown'];
+          
+          inputs.forEach(id => {
+            const input = document.getElementById(id);
+            if (input) input.value = '';
+          });
+          
+          dropdowns.forEach(id => {
+            const dropdown = document.getElementById(id);
+            if (dropdown) this.hideDropdown(dropdown);
+          });
+          
+          this.focusedResultIndex = -1;
+        }
       }
 
-      // Initialize search when DOM is loaded
-      document.addEventListener('DOMContentLoaded', () => {
-        new ClientSideSearch();
-      });
+      // Initialize enhanced search
+      let enhancedSearchInstance = null;
 
-      // Also initialize on Turbo load for Rails 7
+      function initializeEnhancedSearch() {
+        if (!enhancedSearchInstance) {
+          enhancedSearchInstance = new EnhancedSearch();
+          window.enhancedSearch = enhancedSearchInstance;
+        }
+      }
+
+      // Initialize when DOM is ready
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeEnhancedSearch);
+      } else {
+        initializeEnhancedSearch();
+      }
+
+      // Handle Turbo navigation for Rails apps
       document.addEventListener('turbo:load', () => {
-        if (!window.clientSideSearch) {
-          window.clientSideSearch = new ClientSideSearch();
+        if (enhancedSearchInstance) {
+          enhancedSearchInstance.refresh();
+        } else {
+          initializeEnhancedSearch();
         }
       });
-      document.addEventListener("DOMContentLoaded", function () {
+
+      // Handle auto-dismiss alerts
+      document.addEventListener('DOMContentLoaded', function() {
         const alerts = document.querySelectorAll('.alert.auto-dismiss');
-
-        alerts.forEach(function (alert) {
-          setTimeout(function () {
-            // Fade out
-            alert.classList.remove("show");
-            alert.classList.add("fade");
-
-            // Remove from DOM after fade-out
-            setTimeout(function () {
+        alerts.forEach(function(alert) {
+          setTimeout(function() {
+            alert.classList.remove('show');
+            setTimeout(function() {
               alert.remove();
-            }, 300); // match Bootstrap fade transition duration
-          }, 3000); // show for 3 seconds
+            }, 300);
+          }, 5000);
         });
       });
     </script>
-
-    <style>
-      /* Search Results Styling */
-      #searchResults, #mobileSearchResults {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        z-index: 1050;
-        border: 1px solid #dee2e6;
-        border-radius: 0.375rem;
-        background: white;
-        margin-top: 2px;
-      }
-
-      .search-result-item {
-        transition: background-color 0.2s ease;
-      }
-
-      .search-result-item:hover {
-        background-color: #f8f9fa;
-      }
-
-      .search-result-item mark {
-        background-color: #fff3cd;
-        padding: 0.1em 0.2em;
-        border-radius: 0.25rem;
-        font-weight: 600;
-      }
-
-      /* Mobile search improvements */
-      @media (max-width: 991.98px) {
-        #mobileSearch {
-          border-top: 1px solid #dee2e6;
-          padding-top: 1rem;
-          margin-top: 1rem;
-        }
-      }
-
-      /* Highlight animation */
-      .search-highlight {
-        animation: searchPulse 1s ease-in-out;
-      }
-
-      @keyframes searchPulse {
-        0% { background-color: #fff3cd; }
-        50% { background-color: #ffeaa7; }
-        100% { background-color: #fff3cd; }
-      }
-
-      /* Improve dropdown header styling */
-      .dropdown-header {
-        font-weight: 600;
-        color: #495057;
-        font-size: 0.875rem;
-        padding: 0.5rem 1rem 0.25rem;
-      }
-
-      /* Position relative for search container */
-      .navbar .mx-auto {
-        position: relative;
-      }
-    </style>
   </body>
 </html>
