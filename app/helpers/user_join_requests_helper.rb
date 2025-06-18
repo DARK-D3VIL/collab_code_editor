@@ -1,0 +1,2 @@
+module UserJoinRequestsHelper
+end

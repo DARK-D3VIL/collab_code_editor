@@ -111,8 +111,16 @@
                   <span class="fw-medium d-none d-md-inline"><%= current_user.username || current_user.email %></span>
                 </a>
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
-                  <li><a class="dropdown-item" href="#"><i class="bi bi-clock-history me-2"></i>Pending Requests</a></li>
-                  <li><a class="dropdown-item" href="#"><i class="bi bi-gear me-2"></i>Settings</a></li>
+                  <li>
+                    <%= link_to user_join_requests_path, class: "dropdown-item" do %>
+                      <i class="bi bi-clock-history me-2"></i>Pending Requests
+                    <% end %>
+                  </li>
+                  <li>
+                    <%= link_to user_settings_path, class: "dropdown-item" do %>
+                      <i class="bi bi-gear me-2"></i>Settings
+                    <% end %>
+                  </li>
                   <li><hr class="dropdown-divider"></li>
                   <li>
                     <%= button_to destroy_user_session_path, method: :delete, class: "dropdown-item text-danger", style: "border: none; background: none; width: 100%; text-align: left;" do %>

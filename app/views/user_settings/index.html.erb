@@ -1,0 +1,1011 @@
+<!-- app/views/user_settings/index.html.erb -->
+<div class="container-fluid g-0">
+  <div class="row g-0">
+    <!-- Settings Navigation Sidebar -->
+    <nav id="settingsSidebar" class="col-md-4 col-lg-3 d-md-block bg-white sidebar collapse border-end sidebar-protected">
+      <div class="position-sticky p-4">
+        <h5 class="fw-bold text-primary mb-4">Settings Navigation</h5>
+        <ul class="nav flex-column">
+          <li class="nav-item mb-2">
+            <a class="nav-link d-flex align-items-center sidebar-link active" href="#profile" data-section="profile">
+              <i class="bi bi-person-circle me-2 sidebar-icon"></i>
+              Profile Information
+            </a>
+          </li>
+          <li class="nav-item mb-2">
+            <a class="nav-link d-flex align-items-center sidebar-link" href="#security" data-section="security">
+              <i class="bi bi-shield-lock me-2 sidebar-icon"></i>
+              Security
+            </a>
+          </li>
+          <li class="nav-item mb-2">
+            <a class="nav-link d-flex align-items-center sidebar-link" href="#projects" data-section="projects">
+              <i class="bi bi-folder-symlink me-2 sidebar-icon"></i>
+              Project Management
+            </a>
+          </li>
+          <li class="nav-item mb-2">
+            <a class="nav-link d-flex align-items-center sidebar-link text-danger" href="#danger" data-section="danger">
+              <i class="bi bi-exclamation-triangle me-2 sidebar-icon"></i>
+              Delete Account
+            </a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="col-md-8 ms-sm-auto col-lg-9 px-md-4">
+      <div class="container-fluid py-5">
+        <div class="row justify-content-center">
+          <div class="col-12 col-xl-10">
+            
+            <!-- Profile Information Section -->
+            <div id="profile-section" class="settings-section">
+              <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-header bg-white border-bottom" style="border-radius: 16px 16px 0 0;">
+                  <div class="d-flex align-items-center py-2">
+                    <div class="bg-light border rounded-3 p-2 me-3" style="border-color: #e3e6ea;">
+                      <i class="bi bi-person-circle text-secondary"></i>
+                    </div>
+                    <h5 class="card-title mb-0 text-dark fw-semibold">Profile Information</h5>
+                  </div>
+                </div>
+                <div class="card-body p-4">
+                  <%= form_with model: current_user, url: update_profile_path, method: :patch, local: true, class: "needs-validation", novalidate: true do |form| %>
+                    <div class="row g-3">
+                      <div class="col-12">
+                        <%= form.label :username, class: "form-label fw-medium text-dark" %>
+                        <%= form.text_field :username, class: "form-control", placeholder: "Enter your username", required: true %>
+                        <div class="form-text">
+                          <i class="bi bi-info-circle me-1"></i>
+                          This is how others will see you in projects
+                        </div>
+                      </div>
+                      <div class="col-12">
+                        <label class="form-label fw-medium text-dark">Email Address</label>
+                        <div class="input-group">
+                          <input type="email" class="form-control" value="<%= current_user.email %>" readonly disabled>
+                          <span class="input-group-text bg-light border-start-0">
+                            <i class="bi bi-lock-fill text-muted"></i>
+                          </span>
+                        </div>
+                        <div class="form-text">
+                          <i class="bi bi-shield-lock me-1"></i>
+                          Email cannot be changed for security reasons
+                        </div>
+                      </div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-4">
+                      <%= form.submit "Update Profile", class: "btn btn-outline-primary px-4 rounded-pill" %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <!-- Account Overview Card -->
+              <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white border-bottom" style="border-radius: 16px 16px 0 0;">
+                  <div class="d-flex align-items-center py-2">
+                    <div class="bg-light border rounded-3 p-2 me-3" style="border-color: #e3e6ea;">
+                      <i class="bi bi-graph-up text-secondary"></i>
+                    </div>
+                    <h5 class="card-title mb-0 text-dark fw-semibold">Account Overview</h5>
+                  </div>
+                </div>
+                <div class="card-body p-4">
+                  <div class="row g-3 text-center">
+                    <div class="col-6">
+                      <div class="bg-light border rounded-3 p-3" style="border-color: #e3e6ea;">
+                        <i class="bi bi-folder text-secondary d-block mb-2" style="font-size: 1.5rem;"></i>
+                        <div class="fw-bold text-dark h5 mb-1"><%= current_user.owned_projects.count %></div>
+                        <small class="text-muted">Owned Projects</small>
+                      </div>
+                    </div>
+                    <div class="col-6">
+                      <div class="bg-light border rounded-3 p-3" style="border-color: #e3e6ea;">
+                        <i class="bi bi-people text-secondary d-block mb-2" style="font-size: 1.5rem;"></i>
+                        <div class="fw-bold text-dark h5 mb-1"><%= current_user.projects.count %></div>
+                        <small class="text-muted">Collaborations</small>
+                      </div>
+                    </div>
+                    <div class="col-12">
+                      <div class="bg-light border rounded-3 p-3" style="border-color: #e3e6ea;">
+                        <i class="bi bi-calendar-check text-secondary d-block mb-2" style="font-size: 1.5rem;"></i>
+                        <div class="fw-bold text-dark h6 mb-1">Member since</div>
+                        <small class="text-muted"><%= current_user.created_at.strftime("%B %Y") %></small>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Security Section -->
+            <div id="security-section" class="settings-section d-none">
+              <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-header bg-white border-bottom" style="border-radius: 16px 16px 0 0;">
+                  <div class="d-flex align-items-center py-2">
+                    <div class="bg-light border rounded-3 p-2 me-3" style="border-color: #e3e6ea;">
+                      <i class="bi bi-shield-lock text-secondary"></i>
+                    </div>
+                    <h5 class="card-title mb-0 text-dark fw-semibold">Security Settings</h5>
+                  </div>
+                </div>
+                <div class="card-body p-4">
+                  <%= form_with model: current_user, url: update_password_path, method: :patch, local: true, class: "needs-validation", novalidate: true do |form| %>
+                    <div class="row g-3">
+                      <div class="col-12">
+                        <%= form.label :current_password, class: "form-label fw-medium text-dark" %>
+                        <%= form.password_field :current_password, class: "form-control", placeholder: "Enter current password", required: true %>
+                      </div>
+                      <div class="col-12 col-md-6">
+                        <%= form.label :password, "New Password", class: "form-label fw-medium text-dark" %>
+                        <%= form.password_field :password, class: "form-control", placeholder: "Enter new password", required: true %>
+                      </div>
+                      <div class="col-12 col-md-6">
+                        <%= form.label :password_confirmation, "Confirm New Password", class: "form-label fw-medium text-dark" %>
+                        <%= form.password_field :password_confirmation, class: "form-control", placeholder: "Confirm new password", required: true %>
+                      </div>
+                    </div>
+                    <div class="alert alert-light border mt-3" role="alert">
+                      <div class="d-flex">
+                        <i class="bi bi-info-circle text-secondary me-2 mt-1"></i>
+                        <div class="small text-muted">
+                          <strong>Password Requirements:</strong><br>
+                          • At least 8 characters long<br>
+                          • Mix of uppercase and lowercase letters recommended
+                        </div>
+                      </div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-4">
+                      <%= form.submit "Update Password", class: "btn btn-outline-primary px-4 rounded-pill" %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+
+              <!-- Data Export Card -->
+              <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-white border-bottom" style="border-radius: 16px 16px 0 0;">
+                  <div class="d-flex align-items-center py-2">
+                    <div class="bg-light border rounded-3 p-2 me-3" style="border-color: #e3e6ea;">
+                      <i class="bi bi-download text-secondary"></i>
+                    </div>
+                    <h5 class="card-title mb-0 text-dark fw-semibold">Data Export</h5>
+                  </div>
+                </div>
+                <div class="card-body p-4">
+                  <p class="text-muted small mb-3">
+                    Download a copy of your account data including projects, settings, and activity history.
+                  </p>
+                  <%= link_to export_user_data_path, 
+                              class: "btn btn-outline-secondary w-100 rounded-pill d-flex align-items-center justify-content-center" do %>
+                    <i class="bi bi-download me-2"></i>
+                    Export My Data
+                  <% end %>
+                </div>
+              </div>
+            </div>
+
+            <!-- Project Management Section -->
+            <div id="projects-section" class="settings-section d-none">
+              <div class="card border-0 shadow-sm mb-4" style="border-radius: 16px;">
+                <div class="card-header bg-white border-bottom" style="border-radius: 16px 16px 0 0;">
+                  <div class="d-flex align-items-center py-2">
+                    <div class="bg-light border rounded-3 p-2 me-3" style="border-color: #e3e6ea;">
+                      <i class="bi bi-folder-symlink text-secondary"></i>
+                    </div>
+                    <h5 class="card-title mb-0 text-dark fw-semibold">Project Management</h5>
+                  </div>
+                </div>
+                <div class="card-body p-4">
+                  
+                  <!-- Joined Projects Section -->
+                  <div class="mb-5">
+                    <h6 class="fw-semibold text-dark mb-3 d-flex align-items-center">
+                      <i class="bi bi-people me-2 text-secondary"></i>
+                      Joined Projects
+                      <span class="badge bg-light text-secondary border ms-2 rounded-pill">
+                        <%= current_user.projects.count %>
+                      </span>
+                    </h6>
+                    
+                    <% if current_user.projects.any? %>
+                      <% current_user.projects.each do |project| %>
+                        <div class="d-flex align-items-center justify-content-between p-3 bg-light border rounded-3 mb-2" style="border-color: #e3e6ea;">
+                          <div class="d-flex align-items-center">
+                            <i class="bi bi-folder text-secondary me-3"></i>
+                            <div>
+                              <span class="fw-medium text-dark"><%= project.name %></span>
+                              <div class="small text-muted">
+                                <code style="font-size: 0.75rem;"><%= project.slug %></code>
+                              </div>
+                            </div>
+                          </div>
+                          <%= button_to leave_project_path(project), 
+                                        method: :delete,
+                                        class: "btn btn-outline-warning btn-sm rounded-pill leave-project-btn",
+                                        confirm: "Are you sure you want to leave '#{project.name}'?\n\nYou'll lose access to all project files and discussions.",
+                                        form: { class: "d-inline" } do %>
+                            <i class="bi bi-box-arrow-right me-1"></i>
+                            Leave Project
+                          <% end %>
+                        </div>
+                      <% end %>
+                    <% else %>
+                      <div class="text-center py-4">
+                        <i class="bi bi-folder-x text-muted" style="font-size: 2rem;"></i>
+                        <p class="text-muted mb-0 mt-2">You haven't joined any projects yet</p>
+                        <%= link_to "Explore Projects", projects_path, class: "btn btn-outline-primary btn-sm mt-2 rounded-pill" %>
+                      </div>
+                    <% end %>
+                  </div>
+
+                  <!-- Owned Projects Section -->
+                  <div>
+                    <h6 class="fw-semibold text-dark mb-3 d-flex align-items-center">
+                      <i class="bi bi-crown me-2 text-secondary"></i>
+                      Owned Projects
+                      <span class="badge bg-light text-secondary border ms-2 rounded-pill">
+                        <%= current_user.owned_projects.count %>
+                      </span>
+                    </h6>
+                    
+                    <% if current_user.owned_projects.any? %>
+                      <% current_user.owned_projects.each do |project| %>
+                        <div class="d-flex align-items-center justify-content-between p-3 bg-light border rounded-3 mb-2" style="border-color: #e3e6ea;">
+                          <div class="d-flex align-items-center">
+                            <i class="bi bi-folder-fill text-secondary me-3"></i>
+                            <div>
+                              <span class="fw-medium text-dark"><%= project.name %></span>
+                              <div class="small text-muted">
+                                <code style="font-size: 0.75rem;"><%= project.slug %></code>
+                                • <%= pluralize(project.users.count, 'member') %>
+                              </div>
+                            </div>
+                          </div>
+                          <button class="btn btn-outline-danger btn-sm rounded-pill delete-project-btn" 
+                                  data-project-id="<%= project.id %>"
+                                  data-project-name="<%= project.name %>"
+                                  data-delete-url="<%= delete_project_path(project) %>">
+                            <i class="bi bi-trash me-1"></i>
+                            Delete Project
+                          </button>
+                        </div>
+                      <% end %>
+                    <% else %>
+                      <div class="text-center py-4">
+                        <i class="bi bi-folder-plus text-muted" style="font-size: 2rem;"></i>
+                        <p class="text-muted mb-0 mt-2">You don't own any projects yet</p>
+                        <%= link_to "Create Project", new_project_path, class: "btn btn-outline-primary btn-sm mt-2 rounded-pill" %>
+                      </div>
+                    <% end %>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Delete Account Section -->
+            <div id="danger-section" class="settings-section d-none">
+              <div class="card border-danger border-opacity-25 shadow-sm" style="border-radius: 16px;">
+                <div class="card-header bg-danger bg-opacity-5 border-bottom border-danger border-opacity-25" style="border-radius: 16px 16px 0 0;">
+                  <div class="d-flex align-items-center py-2">
+                    <div class="bg-danger bg-opacity-10 border border-danger border-opacity-25 rounded-3 p-2 me-3">
+                      <i class="bi bi-exclamation-triangle text-danger"></i>
+                    </div>
+                    <h5 class="card-title mb-0 text-danger fw-semibold">Danger Zone</h5>
+                  </div>
+                </div>
+                <div class="card-body p-4">
+                  <div class="mb-4">
+                    <h6 class="fw-semibold text-dark mb-3">Delete Account</h6>
+                    <p class="text-muted mb-3">
+                      Permanently delete your account and all associated data. This action cannot be undone.
+                    </p>
+                    <div class="alert alert-danger border-danger bg-danger bg-opacity-10" role="alert">
+                      <h6 class="alert-heading fw-semibold">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        This action will permanently:
+                      </h6>
+                      <ul class="mb-0 ps-3">
+                        <li>Delete all owned projects and their data</li>
+                        <li>Remove you from all joined projects</li>
+                        <li>Erase all personal data and settings</li>
+                        <li>Cancel all pending join requests</li>
+                      </ul>
+                    </div>
+                  </div>
+                  
+                  <button class="btn btn-outline-danger w-100 rounded-pill d-flex align-items-center justify-content-center"
+                          onclick="openDeleteAccountModal()">
+                    <i class="bi bi-person-x me-2"></i>
+                    Delete My Account
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Account Deletion Modal -->
+<div class="modal fade" id="deleteAccountModal" tabindex="-1" aria-labelledby="deleteAccountModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-danger" style="border-radius: 16px;">
+      <div class="modal-header bg-danger bg-opacity-5 border-bottom border-danger border-opacity-25">
+        <h5 class="modal-title text-danger fw-bold" id="deleteAccountModalLabel">
+          <i class="bi bi-exclamation-triangle me-2"></i>
+          Delete Account
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <!-- Step 1: Password Verification -->
+        <div id="step1-password" class="deletion-step">
+          <div class="alert alert-danger border-danger bg-danger bg-opacity-10" role="alert">
+            <h6 class="alert-heading fw-semibold">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              This action is irreversible!
+            </h6>
+            <ul class="mb-0 ps-3 small">
+              <li>All owned projects will be permanently deleted</li>
+              <li>You'll be removed from all joined projects</li>
+              <li>All personal data will be erased</li>
+              <li>Pending join requests will be cancelled</li>
+            </ul>
+          </div>
+          
+          <div class="mb-3">
+            <label for="deletePassword" class="form-label fw-medium">
+              Enter your current password to continue:
+            </label>
+            <input type="password" class="form-control" id="deletePassword" placeholder="Current password" required>
+            <div class="invalid-feedback" id="passwordError"></div>
+          </div>
+          
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary flex-fill" data-bs-dismiss="modal">
+              Cancel
+            </button>
+            <button type="button" class="btn btn-danger flex-fill" onclick="requestDeletionOTP()">
+              <span id="passwordBtnText">Continue</span>
+              <span id="passwordLoader" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: OTP Verification -->
+        <div id="step2-otp" class="deletion-step d-none">
+          <div class="alert alert-info border-info bg-info bg-opacity-10" role="alert">
+            <div class="d-flex align-items-center">
+              <i class="bi bi-envelope-check me-2"></i>
+              <div>
+                <strong>Verification code sent!</strong><br>
+                <small>Please check your email for a 6-digit verification code.</small>
+              </div>
+            </div>
+          </div>
+          
+          <div class="mb-3">
+            <label for="deleteOTP" class="form-label fw-medium">
+              Enter the 6-digit verification code:
+            </label>
+            <input type="text" class="form-control text-center" id="deleteOTP" placeholder="000000" maxlength="6" style="letter-spacing: 0.5em; font-size: 1.2rem;">
+            <div class="invalid-feedback" id="otpError"></div>
+            <small class="form-text text-muted">
+              <i class="bi bi-clock me-1"></i>
+              Code expires in <span id="otpTimer">10:00</span>
+            </small>
+          </div>
+          
+          <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" onclick="backToPasswordStep()">
+              <i class="bi bi-arrow-left me-1"></i>
+              Back
+            </button>
+            <button type="button" class="btn btn-outline-info flex-fill" onclick="requestDeletionOTP()">
+              Resend Code
+            </button>
+            <button type="button" class="btn btn-danger flex-fill" onclick="confirmAccountDeletion()">
+              <span id="deleteBtnText">Delete Account</span>
+              <span id="deleteLoader" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden forms for actions -->
+<%= form_with url: delete_project_path(":id"), method: :delete, id: "delete-project-form", style: "display: none;", local: true do |form| %>
+<% end %>
+
+<!-- Settings Sidebar Styling - Exact Match to Project Sidebar -->
+<style>
+  /* Sidebar Base Styling - Bulletproof Protection */
+  #settingsSidebar.sidebar-protected {
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 100 !important;
+    padding-top: 120px !important; /* Increased to align with main content */
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1) !important;
+    background-color: #ffffff !important;
+    border-right: 1px solid #dee2e6 !important;
+  }
+
+  /* Settings Navigation Title */
+  #settingsSidebar h5 {
+    font-weight: 700 !important;
+    color: #0d6efd !important;
+    margin-bottom: 1.5rem !important;
+    font-size: 1.25rem !important;
+  }
+
+  /* Main Navigation Links */
+  #settingsSidebar .sidebar-link {
+    border-radius: 0.375rem !important;
+    margin-bottom: 0.25rem !important;
+    transition: all 0.2s ease !important;
+    color: #6c757d !important;
+    text-decoration: none !important;
+    padding: 0.75rem 1rem !important;
+    background-color: transparent !important;
+    border: none !important;
+    position: relative !important;
+    cursor: pointer !important;
+  }
+
+  /* Main link hover */
+  #settingsSidebar .sidebar-link:hover {
+    background-color: #f8f9fa !important;
+    color: #495057 !important;
+  }
+
+  /* Active main links with blue left border */
+  #settingsSidebar .sidebar-link.active {
+    background-color: #e3f2fd !important;
+    color: #1976d2 !important;
+    border-left: 3px solid #1976d2 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Danger zone link styling */
+  #settingsSidebar .sidebar-link.text-danger {
+    color: #dc3545 !important;
+  }
+
+  #settingsSidebar .sidebar-link.text-danger:hover {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+    color: #dc3545 !important;
+  }
+
+  #settingsSidebar .sidebar-link.text-danger.active {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+    color: #dc3545 !important;
+    border-left: 3px solid #dc3545 !important;
+    font-weight: 600 !important;
+  }
+
+  /* Icons in main links */
+  #settingsSidebar .sidebar-icon {
+    width: 16px !important;
+    text-align: center !important;
+    color: inherit !important;
+  }
+
+  /* Bootstrap utilities protection */
+  #settingsSidebar .me-2 {
+    margin-right: 0.5rem !important;
+  }
+
+  #settingsSidebar .mb-2 {
+    margin-bottom: 0.5rem !important;
+  }
+
+  #settingsSidebar .mb-4 {
+    margin-bottom: 1.5rem !important;
+  }
+
+  #settingsSidebar .p-4 {
+    padding: 1.5rem !important;
+  }
+
+  /* Flex utilities */
+  #settingsSidebar .d-flex {
+    display: flex !important;
+  }
+
+  #settingsSidebar .align-items-center {
+    align-items: center !important;
+  }
+
+  #settingsSidebar .flex-column {
+    flex-direction: column !important;
+  }
+
+  /* Navigation lists */
+  #settingsSidebar .nav {
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #settingsSidebar .nav-item {
+    list-style: none !important;
+  }
+
+  /* Position utilities */
+  #settingsSidebar .position-sticky {
+    position: sticky !important;
+    top: 0 !important;
+  }
+
+  /* Background and border utilities */
+  #settingsSidebar.bg-white {
+    background-color: #ffffff !important;
+  }
+
+  #settingsSidebar.border-end {
+    border-right: 1px solid #dee2e6 !important;
+  }
+
+  /* Text utilities */
+  #settingsSidebar .text-primary {
+    color: #0d6efd !important;
+  }
+
+  #settingsSidebar .fw-bold {
+    font-weight: 700 !important;
+  }
+
+  /* Responsive behavior */
+  @media (max-width: 767.98px) {
+    #settingsSidebar.sidebar-protected {
+      top: 5rem !important;
+      padding-top: 2rem !important;
+    }
+    
+    #settingsSidebar.collapse:not(.show) {
+      display: none !important;
+    }
+  }
+
+  /* Complete protection from external styles */
+  #settingsSidebar,
+  #settingsSidebar *,
+  .sidebar-protected,
+  .sidebar-protected * {
+    box-sizing: border-box !important;
+  }
+
+  /* Link protection */
+  #settingsSidebar a,
+  #settingsSidebar a:visited,
+  #settingsSidebar a:link,
+  #settingsSidebar a:hover {
+    text-decoration: none !important;
+  }
+
+  /* Override any potential color inheritance */
+  #settingsSidebar .sidebar-link:not(.active):not(.text-danger) {
+    color: #6c757d !important;
+  }
+
+  /* Professional styling for main content */
+  :root {
+    --bs-border-color-subtle: #e3e6ea;
+    --bs-bg-subtle: #f8f9fa;
+    --bs-text-muted: #6c757d;
+  }
+
+  /* Enhanced form styling */
+  .form-control {
+    border: 1px solid var(--bs-border-color-subtle);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .form-control:focus {
+    border-color: #0d6efd;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.1);
+    transform: translateY(-1px);
+  }
+  
+  .form-control:disabled {
+    background-color: #f8f9fa;
+    border-color: var(--bs-border-color-subtle);
+    color: #6c757d;
+  }
+  
+  .input-group-text {
+    border: 1px solid var(--bs-border-color-subtle);
+    background-color: #f8f9fa;
+  }
+
+  /* Button enhancements */
+  .btn {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    font-weight: 500;
+    letter-spacing: 0.01em;
+  }
+  
+  .btn:hover {
+    transform: translateY(-1px);
+  }
+  
+  .btn-outline-primary:hover {
+    box-shadow: 0 4px 16px rgba(13, 110, 253, 0.2);
+  }
+  
+  .btn-outline-secondary:hover {
+    box-shadow: 0 4px 16px rgba(108, 117, 125, 0.15);
+  }
+  
+  .btn-outline-warning:hover {
+    box-shadow: 0 4px 16px rgba(255, 193, 7, 0.2);
+  }
+  
+  .btn-outline-danger:hover {
+    box-shadow: 0 4px 16px rgba(220, 53, 69, 0.2);
+  }
+
+  /* Card styling */
+  .card {
+    border: 1px solid var(--bs-border-color-subtle);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+    transition: all 0.3s ease;
+  }
+  
+  .card-header {
+    background-color: #ffffff;
+    border-bottom: 1px solid var(--bs-border-color-subtle);
+  }
+
+  /* Project item hover effects */
+  .bg-light.border {
+    transition: all 0.2s ease;
+  }
+  
+  .bg-light.border:hover {
+    background-color: #e9ecef !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  }
+
+  /* Statistics cards */
+  .bg-light.border.rounded-3 {
+    transition: all 0.2s ease;
+  }
+  
+  .bg-light.border.rounded-3:hover {
+    background-color: #e9ecef !important;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Danger zone specific styling */
+  .card.border-danger {
+    background-color: rgba(220, 53, 69, 0.02);
+  }
+  
+  .bg-danger.bg-opacity-5 {
+    background-color: rgba(220, 53, 69, 0.05) !important;
+  }
+  
+  .bg-danger.bg-opacity-10 {
+    background-color: rgba(220, 53, 69, 0.1) !important;
+  }
+
+  /* Typography */
+  .fw-semibold {
+    font-weight: 600;
+  }
+  
+  code {
+    background-color: #f8f9fa;
+    color: #495057;
+    padding: 0.2rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.875em;
+    border: 1px solid var(--bs-border-color-subtle);
+  }
+
+  /* Animation */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .settings-section {
+    animation: fadeInUp 0.4s ease-out;
+  }
+</style>
+
+<!-- Enhanced JavaScript for navigation and confirmations -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // Sidebar navigation
+    const navLinks = document.querySelectorAll('#settingsSidebar .sidebar-link');
+    const sections = document.querySelectorAll('.settings-section');
+
+    navLinks.forEach(link => {
+      link.addEventListener('click', function(e) {
+        e.preventDefault();
+        
+        // Remove active class from all links
+        navLinks.forEach(l => l.classList.remove('active'));
+        
+        // Add active class to clicked link
+        this.classList.add('active');
+        
+        // Hide all sections
+        sections.forEach(section => section.classList.add('d-none'));
+        
+        // Show target section
+        const targetSection = document.getElementById(this.dataset.section + '-section');
+        if (targetSection) {
+          targetSection.classList.remove('d-none');
+        }
+      });
+    });
+
+    // Enhanced form validation
+    const forms = document.querySelectorAll('.needs-validation');
+    
+    forms.forEach(function(form) {
+      form.addEventListener('submit', function(event) {
+        if (!form.checkValidity()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+        form.classList.add('was-validated');
+      });
+    });
+
+    // Password confirmation validation
+    const passwordField = document.querySelector('input[name="user[password]"]');
+    const confirmField = document.querySelector('input[name="user[password_confirmation]"]');
+    
+    if (passwordField && confirmField) {
+      function validatePasswordMatch() {
+        if (confirmField.value !== passwordField.value) {
+          confirmField.setCustomValidity('Passwords do not match');
+        } else {
+          confirmField.setCustomValidity('');
+        }
+      }
+      
+      passwordField.addEventListener('input', validatePasswordMatch);
+      confirmField.addEventListener('input', validatePasswordMatch);
+    }
+
+    // Leave Project - Now handled by button_to with built-in confirmation
+    // No additional JavaScript needed for leave project
+
+    // Delete Project Confirmation (GitHub-style)
+    document.querySelectorAll('.delete-project-btn').forEach(btn => {
+      btn.addEventListener('click', function(e) {
+        e.preventDefault();
+        const projectName = this.dataset.projectName;
+        const deleteUrl = this.dataset.deleteUrl;
+        
+        const confirmText = prompt(
+          `⚠️ DANGER: This will permanently delete "${projectName}" and ALL its data.\n\n` +
+          `This action CANNOT be undone.\n\n` +
+          `Please type "DELETE" to confirm:`
+        );
+        
+        if (confirmText === 'DELETE') {
+          const form = document.getElementById('delete-project-form');
+          form.action = deleteUrl;
+          form.submit();
+        } else if (confirmText !== null) {
+          alert('Confirmation text did not match. Project deletion cancelled.');
+        }
+      });
+    });
+
+    // Account Deletion Modal Functions
+    window.openDeleteAccountModal = function() {
+      // Reset modal to step 1
+      document.getElementById('step1-password').classList.remove('d-none');
+      document.getElementById('step2-otp').classList.add('d-none');
+      document.getElementById('deletePassword').value = '';
+      document.getElementById('deleteOTP').value = '';
+      clearValidationErrors();
+      
+      // Show modal
+      const modal = new bootstrap.Modal(document.getElementById('deleteAccountModal'));
+      modal.show();
+    };
+
+    window.requestDeletionOTP = function() {
+      const password = document.getElementById('deletePassword').value;
+      const passwordBtn = document.querySelector('#step1-password .btn-danger');
+      const passwordBtnText = document.getElementById('passwordBtnText');
+      const passwordLoader = document.getElementById('passwordLoader');
+      
+      if (!password) {
+        showValidationError('deletePassword', 'passwordError', 'Password is required');
+        return;
+      }
+      
+      // Show loading state
+      passwordBtn.disabled = true;
+      passwordBtnText.textContent = 'Sending...';
+      passwordLoader.classList.remove('d-none');
+      clearValidationErrors();
+      
+      // Send request to backend
+      fetch('<%= request_deletion_otp_path %>', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+          current_password: password
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Move to step 2
+          document.getElementById('step1-password').classList.add('d-none');
+          document.getElementById('step2-otp').classList.remove('d-none');
+          startOTPTimer();
+        } else {
+          showValidationError('deletePassword', 'passwordError', data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        showValidationError('deletePassword', 'passwordError', 'An error occurred. Please try again.');
+      })
+      .finally(() => {
+        // Reset button state
+        passwordBtn.disabled = false;
+        passwordBtnText.textContent = 'Continue';
+        passwordLoader.classList.add('d-none');
+      });
+    };
+
+    window.confirmAccountDeletion = function() {
+      const otp = document.getElementById('deleteOTP').value;
+      const deleteBtn = document.querySelector('#step2-otp .btn-danger');
+      const deleteBtnText = document.getElementById('deleteBtnText');
+      const deleteLoader = document.getElementById('deleteLoader');
+      
+      if (!otp || otp.length !== 6) {
+        showValidationError('deleteOTP', 'otpError', 'Please enter a valid 6-digit code');
+        return;
+      }
+      
+      // Show loading state
+      deleteBtn.disabled = true;
+      deleteBtnText.textContent = 'Deleting...';
+      deleteLoader.classList.remove('d-none');
+      clearValidationErrors();
+      
+      // Send deletion request
+      fetch('<%= delete_account_path %>', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('[name="csrf-token"]').content
+        },
+        body: JSON.stringify({
+          otp: otp
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Show success message and redirect
+          alert(data.message);
+          window.location.href = data.redirect_url;
+        } else {
+          showValidationError('deleteOTP', 'otpError', data.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        showValidationError('deleteOTP', 'otpError', 'An error occurred. Please try again.');
+      })
+      .finally(() => {
+        // Reset button state
+        deleteBtn.disabled = false;
+        deleteBtnText.textContent = 'Delete Account';
+        deleteLoader.classList.add('d-none');
+      });
+    };
+
+    window.backToPasswordStep = function() {
+      document.getElementById('step2-otp').classList.add('d-none');
+      document.getElementById('step1-password').classList.remove('d-none');
+      clearValidationErrors();
+    };
+
+    function showValidationError(inputId, errorId, message) {
+      const input = document.getElementById(inputId);
+      const error = document.getElementById(errorId);
+      
+      input.classList.add('is-invalid');
+      error.textContent = message;
+    }
+
+    function clearValidationErrors() {
+      document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+      document.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
+    }
+
+    function startOTPTimer() {
+      let timeLeft = 600; // 10 minutes in seconds
+      const timerElement = document.getElementById('otpTimer');
+      
+      const timer = setInterval(() => {
+        const minutes = Math.floor(timeLeft / 60);
+        const seconds = timeLeft % 60;
+        timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (timeLeft <= 0) {
+          clearInterval(timer);
+          timerElement.textContent = 'Expired';
+          timerElement.className = 'text-danger';
+        }
+        
+        timeLeft--;
+      }, 1000);
+    }
+
+    // OTP input formatting
+    document.addEventListener('DOMContentLoaded', function() {
+      const otpInput = document.getElementById('deleteOTP');
+      if (otpInput) {
+        otpInput.addEventListener('input', function(e) {
+          // Only allow digits
+          this.value = this.value.replace(/\D/g, '');
+        });
+      }
+    });
+
+    // Smooth scrolling for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function (e) {
+        e.preventDefault();
+        const target = document.querySelector(this.getAttribute('href'));
+        if (target) {
+          target.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start'
+          });
+        }
+      });
+    });
+
+    // Auto-hide alerts
+    const alerts = document.querySelectorAll('.alert.auto-dismiss');
+    alerts.forEach(function(alert) {
+      setTimeout(function() {
+        alert.classList.remove('show');
+        setTimeout(function() {
+          alert.remove();
+        }, 300);
+      }, 5000);
+    });
+  });
+</script>

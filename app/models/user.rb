@@ -7,9 +7,11 @@ class User < ApplicationRecord
 
   # Associations
   has_many :email_verifications, dependent: :destroy
-  has_many :project_memberships
+  has_many :project_memberships, dependent: :destroy
   has_many :projects, through: :project_memberships
-  has_many :owned_projects, class_name: "Project", foreign_key: "owner_id"
+  has_many :owned_projects, class_name: "Project", foreign_key: "owner_id", dependent: :destroy
+  has_many :project_join_requests, dependent: :destroy
+  has_many :conflict_queues, dependent: :destroy
 
   validates :username, presence: true
 
@@ -108,19 +110,6 @@ class User < ApplicationRecord
       response.success?
     rescue
       false
-    end
-  end
-
-  def active_for_authentication?
-    super && (email_verified? || oauth_user?)
-  end
-
-  # Custom message for inactive users
-  def inactive_message
-    if !email_verified? && !oauth_user?
-      :email_not_verified # This will show a custom symbol and define it in your locale files
-    else
-      super
     end
   end
 end

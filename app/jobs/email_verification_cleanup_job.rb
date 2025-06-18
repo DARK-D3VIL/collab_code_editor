@@ -9,7 +9,6 @@ class EmailVerificationCleanupJob < ApplicationJob
 
     Rails.logger.info "Cleaned up #{expired_count} expired email verifications"
 
-    # Optional: Clean up unverified users older than 24 hours
     unverified_users = User.where(email_verified_at: nil, provider: nil)
                           .where("created_at < ?", 24.hours.ago)
 
