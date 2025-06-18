@@ -1,3 +1,4 @@
+# app/services/github_push_service.rb
 class GithubPushService
   def initialize(project, branch, user)
     @project = project
@@ -8,10 +9,10 @@ class GithubPushService
   def call
     begin
       perform_push
-      OpenStruct.new(success?: true)
+      Result.new(success: true)
     rescue => e
       Rails.logger.error "GitHub push error: #{e.message}"
-      OpenStruct.new(success?: false, error: e.message)
+      Result.new(success: false, error: e.message)
     end
   end
 
@@ -55,6 +56,20 @@ class GithubPushService
 
     Timeout.timeout(60) do # 1 minute timeout for push
       remote.push([ branch_ref ], credentials: credentials)
+    end
+  end
+
+  # Simple result class
+  class Result
+    attr_reader :success, :error
+
+    def initialize(success:, error: nil)
+      @success = success
+      @error = error
+    end
+
+    def success?
+      @success
     end
   end
 end

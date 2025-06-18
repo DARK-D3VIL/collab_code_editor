@@ -259,7 +259,8 @@ document.addEventListener('DOMContentLoaded', function() {
             Changes committed successfully! 
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
           `;
-          document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
+          const mainContent = document.querySelector('main');
+          mainContent.insertBefore(alertDiv, mainContent.firstChild);
           
           // Hide modal
           commitModal.hide();
@@ -283,7 +284,8 @@ document.addEventListener('DOMContentLoaded', function() {
           Error committing changes: ${error.message}
           <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         `;
-        document.querySelector('.container').insertBefore(alertDiv, document.querySelector('.container').firstChild);
+        const mainContent = document.querySelector('main');
+        mainContent.insertBefore(alertDiv, mainContent.firstChild);
       })
       .finally(() => {
         // Re-enable button

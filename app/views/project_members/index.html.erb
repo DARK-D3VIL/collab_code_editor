@@ -85,7 +85,7 @@
                                     method: :patch,
                                     class: "btn btn-outline-info btn-sm" %>
                     <% end %>
-                    <%= button_to "Remove", deactivate_project_project_member_path(@project, membership.user),
+                    <%= button_to "Block User", deactivate_project_project_member_path(@project, membership.user),
                                   method: :patch,
                                   data: { confirm: "Are you sure you want to remove this member?" },
                                   class: "btn btn-outline-danger btn-sm" %>
@@ -114,7 +114,7 @@
                       <small class="text-muted">Role: <%= membership.role.humanize %></small>
                     </div>
                   </div>
-                  <%= button_to "Re-add", activate_project_project_member_path(@project, membership.user),
+                  <%= button_to "Unblock User", activate_project_project_member_path(@project, membership.user),
                                 method: :patch,
                                 class: "btn btn-outline-success btn-sm mt-auto" %>
                 </div>

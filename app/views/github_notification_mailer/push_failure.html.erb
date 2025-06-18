@@ -1,0 +1,55 @@
+<!-- app/views/github_notification_mailer/push_failure.html.erb -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Push Failed</title>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background: #dc3545; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+      .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 5px 5px; }
+      .button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+      .error-box { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px; border-radius: 5px; margin: 20px 0; }
+      .footer { margin-top: 30px; font-size: 12px; color: #666; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>❌ Push Failed</h1>
+      </div>
+      <div class="content">
+        <p>Hi <%= @user.username || @user.email %>,</p>
+        
+        <p>We encountered an issue while trying to push your code to GitHub.</p>
+        
+        <h3>Project Details:</h3>
+        <ul>
+          <li><strong>Project:</strong> <%= @project.name %></li>
+          <li><strong>Repository:</strong> <%= @project.github_url %></li>
+          <li><strong>Attempted at:</strong> <%= Time.current.strftime("%B %d, %Y at %I:%M %p") %></li>
+        </ul>
+        
+        <div class="error-box">
+          <h4>Error Details:</h4>
+          <p><%= @error_message %></p>
+        </div>
+        
+        <h3>What you can do:</h3>
+        <ul>
+          <li>Check your GitHub repository permissions</li>
+          <li>Verify your GitHub token is still valid</li>
+          <li>Try pushing again from the project page</li>
+          <li>Contact support if the issue persists</li>
+        </ul>
+        
+        <a href="<%= @project_url %>" class="button">Go to Project</a>
+      </div>
+      <div class="footer">
+        <p>This is an automated notification from your development platform.</p>
+      </div>
+    </div>
+  </body>
+</html>

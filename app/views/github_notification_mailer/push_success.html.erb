@@ -1,0 +1,45 @@
+<!-- app/views/github_notification_mailer/push_success.html.erb -->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Push Successful</title>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .header { background: #28a745; color: white; padding: 20px; text-align: center; border-radius: 5px 5px 0 0; }
+      .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 5px 5px; }
+      .button { display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+      .footer { margin-top: 30px; font-size: 12px; color: #666; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>✅ Push Successful!</h1>
+      </div>
+      <div class="content">
+        <p>Hi <%= @user.username || @user.email %>,</p>
+        
+        <p>Great news! Your code has been successfully pushed to GitHub.</p>
+        
+        <h3>Project Details:</h3>
+        <ul>
+          <li><strong>Project:</strong> <%= @project.name %></li>
+          <li><strong>Repository:</strong> <%= @project.github_url %></li>
+          <li><strong>Pushed at:</strong> <%= Time.current.strftime("%B %d, %Y at %I:%M %p") %></li>
+        </ul>
+        
+        <p>Your latest changes are now live on GitHub and accessible to your team.</p>
+        
+        <a href="<%= @project_url %>" class="button">View Project</a>
+        
+        <p>Happy coding!</p>
+      </div>
+      <div class="footer">
+        <p>This is an automated notification from your development platform.</p>
+      </div>
+    </div>
+  </body>
+</html>

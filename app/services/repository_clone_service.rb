@@ -1,3 +1,4 @@
+# app/services/repository_clone_service.rb
 class RepositoryCloneService
   def initialize(user, repo_name, clone_url, is_authenticated)
     @user = user
@@ -12,7 +13,7 @@ class RepositoryCloneService
     end
   rescue => e
     cleanup_on_error
-    OpenStruct.new(success?: false, error: e.message)
+    Result.new(success: false, error: e.message)
   end
 
   private
@@ -28,7 +29,7 @@ class RepositoryCloneService
     process_repository_data
     create_project_membership
 
-    OpenStruct.new(success?: true, project: @project)
+    Result.new(success: true, project: @project)
   end
 
   def clone_repository
@@ -135,5 +136,20 @@ class RepositoryCloneService
   def cleanup_on_error
     @project&.destroy
     FileUtils.rm_rf(@repo_path) if @repo_path && Dir.exist?(@repo_path)
+  end
+
+  # Simple result class
+  class Result
+    attr_reader :success, :error, :project
+
+    def initialize(success:, error: nil, project: nil)
+      @success = success
+      @error = error
+      @project = project
+    end
+
+    def success?
+      @success
+    end
   end
 end

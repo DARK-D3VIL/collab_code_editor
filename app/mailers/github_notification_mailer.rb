@@ -1,7 +1,5 @@
 # app/mailers/github_notification_mailer.rb
 class GithubNotificationMailer < ApplicationMailer
-  default from: ENV.fetch("MAILER_FROM_EMAIL", "noreply@yourapp.com")
-
   def push_success(user, project)
     @user = user
     @project = project
