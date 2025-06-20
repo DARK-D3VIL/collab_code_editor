@@ -47,18 +47,18 @@ Rails.application.routes.draw do
 
   resources :user_join_requests, only: [ :index, :destroy ], path: "my-requests"
 
-  get '/settings', to: 'user_settings#index', as: 'user_settings'
-  patch '/settings/profile', to: 'user_settings#update_profile', as: 'update_profile'
-  patch '/settings/password', to: 'user_settings#update_password', as: 'update_password'
-  get '/settings/export', to: 'user_settings#export_data', as: 'export_user_data'
+  get "/settings", to: "user_settings#index", as: "user_settings"
+  patch "/settings/profile", to: "user_settings#update_profile", as: "update_profile"
+  patch "/settings/password", to: "user_settings#update_password", as: "update_password"
+  get "/settings/export", to: "user_settings#export_data", as: "export_user_data"
 
   # Account deletion with OTP verification
-  post '/settings/request_deletion_otp', to: 'user_settings#request_deletion_otp', as: 'request_deletion_otp'
-  delete '/settings/account', to: 'user_settings#destroy_account', as: 'delete_account'
+  post "/settings/request_deletion_otp", to: "user_settings#request_deletion_otp", as: "request_deletion_otp"
+  delete "/settings/account", to: "user_settings#destroy_account", as: "delete_account"
 
   # Project management from settings
-  delete '/projects/:id/leave', to: 'user_settings#leave_project', as: 'leave_project'
-  delete '/projects/:id/delete', to: 'user_settings#delete_project', as: 'delete_project'
+  delete "/projects/:id/leave", to: "user_settings#leave_project", as: "leave_project"
+  delete "/projects/:id/delete", to: "user_settings#delete_project", as: "delete_project"
 
   get "/github_repos", to: "github#repos"
   post "/github_clone", to: "github#clone", as: :github_clone
