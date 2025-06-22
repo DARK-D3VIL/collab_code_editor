@@ -33,4 +33,73 @@ class Project < ApplicationRecord
   def has_pending_request?(user)
     project_join_requests.pending.exists?(user: user)
   end
+  has_many :ai_training_jobs, dependent: :destroy
+  
+  enum ai_training_status: {
+    not_started: 'not_started',
+    queued: 'queued', 
+    training: 'training',
+    completed: 'completed',
+    failed: 'failed'
+  }
+  
+  def latest_training_job
+    ai_training_jobs.recent.first
+  end
+  
+  def ai_model_available?
+    ai_training_status == 'completed' && ai_model_trained_at.present?
+  end
+  
+  def can_start_ai_training?
+    ai_training_enabled? && !training_in_progress?
+  end
+  
+  def training_in_progress?
+    %w[queued training].include?(ai_training_status)
+  end
+  
+  def start_ai_training!(user, force_retrain: false)
+    return false unless can_start_ai_training? || force_retrain
+    
+    # Check if AI service is available
+    unless AiCompletionService.health_check
+      Rails.logger.error "AI service is not available for project #{id}"
+      return false
+    end
+    
+    repository_path = Rails.root.join("storage", "projects", "project_#{id}").to_s
+    
+    # Start training via AI service
+    job_data = AiCompletionService.start_training(id, repository_path, force_retrain: force_retrain)
+    
+    if job_data
+      # Create local tracking record
+      training_job = ai_training_jobs.create!(
+        user: user,
+        job_id: job_data['job_id'],
+        status: job_data['status'] || 'queued',
+        started_at: Time.current
+      )
+      
+      # Update project status
+      update!(
+        ai_training_status: 'queued',
+        ai_model_trained_at: nil
+      )
+      
+      # Start background job to monitor progress
+      AiTrainingMonitorJob.perform_later(training_job.id)
+      
+      Rails.logger.info "AI training started for project #{id}: #{job_data['job_id']}"
+      training_job
+    else
+      Rails.logger.error "Failed to start AI training for project #{id}"
+      nil
+    end
+  end
+  
+  def repository_path
+    Rails.root.join("storage", "projects", "project_#{id}").to_s
+  end
 end

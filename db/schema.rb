@@ -10,9 +10,27 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_06_17_074245) do
+ActiveRecord::Schema[7.2].define(version: 2025_06_22_064720) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "ai_training_jobs", force: :cascade do |t|
+    t.bigint "project_id", null: false
+    t.bigint "user_id", null: false
+    t.string "job_id", null: false
+    t.string "status", default: "queued", null: false
+    t.integer "progress", default: 0
+    t.text "error_message"
+    t.datetime "started_at"
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["job_id"], name: "index_ai_training_jobs_on_job_id", unique: true
+    t.index ["project_id", "created_at"], name: "index_ai_training_jobs_on_project_id_and_created_at"
+    t.index ["project_id"], name: "index_ai_training_jobs_on_project_id"
+    t.index ["status"], name: "index_ai_training_jobs_on_status"
+    t.index ["user_id"], name: "index_ai_training_jobs_on_user_id"
+  end
 
   create_table "branches", force: :cascade do |t|
     t.bigint "project_id", null: false
@@ -116,6 +134,10 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_17_074245) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "github_url"
+    t.string "ai_training_status", default: "not_started"
+    t.datetime "ai_model_trained_at"
+    t.boolean "ai_training_enabled", default: true
+    t.index ["ai_training_status"], name: "index_projects_on_ai_training_status"
   end
 
   create_table "users", force: :cascade do |t|
@@ -136,6 +158,8 @@ ActiveRecord::Schema[7.2].define(version: 2025_06_17_074245) do
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
   end
 
+  add_foreign_key "ai_training_jobs", "projects"
+  add_foreign_key "ai_training_jobs", "users"
   add_foreign_key "branches", "projects"
   add_foreign_key "commits", "branches"
   add_foreign_key "commits", "projects"

@@ -33,6 +33,14 @@ Rails.application.routes.draw do
   # root "posts#index"
   root to: "projects#index"
 
+  namespace :api do
+    resources :ai, only: [] do
+      collection do
+        post :completions
+      end
+    end
+  end
+
   resources :conflicts, only: [ :index, :show, :destroy ] do
     member do
       post :resolve

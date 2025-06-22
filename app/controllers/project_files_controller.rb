@@ -67,6 +67,7 @@ class ProjectFilesController < ApplicationController
     @language = language_for_extension(@file_name)
     @file_path = @current_path
   end
+  
   def edit
     # Check if user has write permissions
     unless current_user == @project.owner || current_user_membership&.can_write?

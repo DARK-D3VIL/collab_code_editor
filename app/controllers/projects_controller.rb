@@ -70,6 +70,13 @@ class ProjectsController < ApplicationController
         current_branch: main_branch
       )
 
+      if @project.ai_training_enabled?
+        Rails.logger.info "Starting AI training for new project #{@project.id}"
+        
+        # Start training in background after a short delay to ensure all files are ready
+        AiProjectSetupJob.perform_later(@project.id, current_user.id)
+      end
+
       redirect_to project_project_files_path(@project), notice: "Project created successfully!"
     else
       render :new
@@ -253,6 +260,13 @@ class ProjectsController < ApplicationController
         # Regular file upload - initialize new Git repository
         initialize_new_repository(source_dir, repo_path, project, current_user, project_name)
 
+        if project.ai_training_enabled?
+          Rails.logger.info "Starting AI training for uploaded project #{project.id}"
+          
+          # Start training in background after a short delay to ensure all files are ready
+          AiProjectSetupJob.perform_later(project.id, current_user.id)
+        end
+        # Redirect to project files page
         redirect_to project_project_files_path(project),
                     notice: "Project uploaded and initialized successfully!"
       end
@@ -268,6 +282,31 @@ class ProjectsController < ApplicationController
       # Clean up temporary files
       FileUtils.rm_rf(temp_dir) if temp_dir && Dir.exist?(temp_dir)
     end
+  end
+
+  def start_ai_training
+    @project = current_user.projects.find(params[:id])
+    
+    training_job = @project.start_ai_training!(current_user, force_retrain: params[:force_retrain] == 'true')
+    
+    if training_job
+      flash[:notice] = "AI model training started! This will take about 15-20 minutes."
+    else
+      flash[:alert] = "Failed to start AI training. Please try again later."
+    end
+    
+    redirect_back(fallback_location: project_path(@project))
+  end
+  
+  # Check AI training status
+  def ai_training_status
+    @project = current_user.projects.find(params[:id])
+    
+    render json: {
+      status: @project.ai_training_status,
+      model_available: @project.ai_model_available?,
+      latest_job: @project.latest_training_job&.as_json(only: [:status, :progress, :error_message, :created_at])
+    }
   end
 
   private

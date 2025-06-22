@@ -28,7 +28,12 @@ class RepositoryCloneService
     clone_repository
     process_repository_data
     create_project_membership
-
+    if @project.ai_training_enabled?
+        Rails.logger.info "Starting AI training for new project #{@project.id}"
+        
+        # Start training in background after a short delay to ensure all files are ready
+        AiProjectSetupJob.perform_later(@project.id, @user.id)
+    end
     Result.new(success: true, project: @project)
   end
 

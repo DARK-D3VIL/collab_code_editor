@@ -1,10 +1,16 @@
-<%# app/views/project_files/edit.html.erb %>
+<%# app/views/project_files/edit.html.erb - Enhanced with AI Code Completion %>
 
 <div class="editor-page-wrapper">
   <!-- Chat Toggle Button (moved to bottom right) -->
   <button id="chatToggleBtn" class="btn btn-primary chat-toggle-btn-bottom" onclick="toggleChatSidebar()">
     <i class="bi bi-chat-dots"></i>
     <span class="badge bg-danger chat-notification-badge" id="chatNotificationBadge" style="display: none;">0</span>
+  </button>
+
+  <!-- AI Completion Toggle Button -->
+  <button id="aiToggleBtn" class="btn btn-success ai-toggle-btn" onclick="toggleAICompletion()" title="Toggle AI Completion (Ctrl+Alt+A)">
+    <i class="bi bi-robot"></i>
+    <span class="ai-status-indicator" id="aiStatusIndicator"></span>
   </button>
 
   <!-- Editor Container -->
@@ -23,6 +29,11 @@
         <span class="connection-status" id="connectionStatus">
           <i class="bi bi-circle-fill text-warning me-1"></i>
           <small class="text-muted">Connecting...</small>
+        </span>
+        <!-- AI Status in Header -->
+        <span class="ai-status" id="aiHeaderStatus">
+          <i class="bi bi-robot me-1"></i>
+          <small class="text-muted" id="aiStatusText">AI Ready</small>
         </span>
       </div>
       
@@ -45,6 +56,11 @@
             <span>Commit</span>
           </button>
           
+          <button id="aiCompletionBtn" class="btn btn-outline-info btn-sm" onclick="triggerAICompletion()" title="Get AI Suggestions (Ctrl+Enter)">
+            <i class="bi bi-lightbulb me-1"></i>
+            <span>AI Complete</span>
+          </button>
+          
           <div class="dropdown">
             <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
               <i class="bi bi-three-dots"></i>
@@ -55,6 +71,10 @@
               </a></li>
               <li><a class="dropdown-item" href="#" onclick="refreshEditor()">
                 <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+              </a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item" href="#" onclick="toggleAICompletion()">
+                <i class="bi bi-robot me-2"></i>Toggle AI Completion
               </a></li>
               <li><hr class="dropdown-divider"></li>
               <li><a class="dropdown-item" href="<%= project_project_files_path(@project, path: @current_path) %>">
@@ -69,6 +89,25 @@
     <!-- Monaco Editor -->
     <div class="editor-main">
       <div id="monaco-editor"></div>
+      
+      <!-- AI Completion Popup -->
+      <div id="aiCompletionPopup" class="ai-completion-popup" style="display: none;">
+        <div class="ai-popup-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <span class="fw-bold">
+              <i class="bi bi-robot text-primary me-2"></i>
+              AI Suggestions
+            </span>
+            <button class="btn-close btn-close-sm" onclick="hideAICompletionPopup()"></button>
+          </div>
+        </div>
+        <div class="ai-suggestions-list" id="aiSuggestionsList">
+          <!-- AI suggestions will be populated here -->
+        </div>
+        <div class="ai-popup-footer">
+          <small class="text-muted">Press Tab to accept • Esc to dismiss • ↑↓ to navigate</small>
+        </div>
+      </div>
     </div>
 
     <!-- Editor Status Bar -->
@@ -83,6 +122,10 @@
         </span>
         <span class="status-item" id="selectionInfo" style="display: none;">
           Selected: 0 chars
+        </span>
+        <span class="status-item" id="aiCompletionStatus">
+          <i class="bi bi-robot me-1"></i>
+          <span id="aiStatusMessage">Ready</span>
         </span>
       </div>
       
@@ -215,7 +258,8 @@
     savePath: '<%= save_project_project_file_path(@project, @file_name, path: @current_path) %>',
     commitPath: '<%= commit_project_project_file_path(@project, @file_name, path: @current_path) %>',
     currentPath: '<%= @current_path %>',
-    projectPath: '<%= project_project_files_path(@project, path: @current_path) %>'
+    projectPath: '<%= project_project_files_path(@project, path: @current_path) %>',
+    aiCompletionPath: '/api/ai/completions' // Add AI completion endpoint
   };
   
   // Debug the save path
@@ -223,7 +267,7 @@
   console.log('Can edit:', window.editorConfig.canEdit);
 </script>
 
-<!-- Enhanced Editor JavaScript from your artifact -->
+<!-- Enhanced Editor JavaScript with AI Completion -->
 <script type="module">
   import { createConsumer } from 'https://ga.jspm.io/npm:@rails/actioncable@8.0.200/app/assets/javascripts/actioncable.esm.js';
   
@@ -247,7 +291,7 @@
     });
     
     require(['vs/editor/editor.main'], function() {
-      window.collaborativeEditor = new CollaborativeEditor(window.editorConfig);
+      window.collaborativeEditor = new CollaborativeEditorWithAI(window.editorConfig);
       setupGlobalHandlers();
     });
   }
@@ -280,10 +324,35 @@
         e.preventDefault();
         toggleChatSidebar();
       }
+      
+      // AI Completion shortcuts
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        window.collaborativeEditor?.triggerAICompletion();
+      }
+      
+      if (e.ctrlKey && e.altKey && e.key === 'a') {
+        e.preventDefault();
+        toggleAICompletion();
+      }
+      
+      // Handle AI popup navigation
+      if (window.collaborativeEditor?.aiPopupVisible) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          window.collaborativeEditor.hideAICompletionPopup();
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          window.collaborativeEditor.acceptSelectedSuggestion();
+        } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          window.collaborativeEditor.navigateAISuggestions(e.key === 'ArrowUp' ? -1 : 1);
+        }
+      }
     });
   }
 
-  class CollaborativeEditor {
+  class CollaborativeEditorWithAI {
     constructor(config) {
       this.config = config;
       this.editor = null;
@@ -297,6 +366,15 @@
       this.typingTimeout = null;
       this.isRemoteUpdate = false;
       
+      // AI Completion properties
+      this.aiEnabled = true;
+      this.aiSuggestions = [];
+      this.aiPopupVisible = false;
+      this.selectedSuggestionIndex = 0;
+      this.aiCompletionTimeout = null;
+      this.aiRequestInProgress = false;
+      this.lastAIRequest = null;
+      
       // Notification throttling
       this.lastNotificationTime = new Map();
       this.notificationCounts = new Map();
@@ -308,6 +386,7 @@
       this.createEditor();
       this.setupChannel();
       this.setupUIHandlers();
+      this.setupAICompletion();
       this.updateUI();
     }
 
@@ -327,7 +406,11 @@
         renderWhitespace: 'boundary',
         scrollBeyondLastLine: false,
         smoothScrolling: true,
-        cursorBlinking: 'smooth'
+        cursorBlinking: 'smooth',
+        // AI completion settings
+        quickSuggestions: false, // Disable built-in suggestions to use our AI
+        suggestOnTriggerCharacters: false,
+        acceptSuggestionOnEnter: 'off'
       });
 
       this.setupEditorHandlers();
@@ -343,14 +426,25 @@
         const content = this.editor.getValue();
         const changes = this.detectChanges(e);
         
+        // Hide AI popup when content changes
+        this.hideAICompletionPopup();
+        
         clearTimeout(this.updateTimeout);
         this.updateTimeout = setTimeout(() => {
           this.sendContentUpdate(content, changes);
         }, 300);
+        
+        // Schedule AI completion if enabled
+        if (this.aiEnabled && this.config.canEdit) {
+          this.scheduleAICompletion();
+        }
       });
 
       this.editor.onDidChangeCursorPosition((e) => {
         this.updateCursorPosition(e.position);
+        
+        // Hide AI popup when cursor moves
+        this.hideAICompletionPopup();
         
         if (!this.isRemoteUpdate) {
           clearTimeout(this.cursorTimeout);
@@ -369,6 +463,307 @@
       });
     }
 
+    setupAICompletion() {
+      // Initialize AI status
+      this.updateAIStatus('ready', 'AI Ready');
+      
+      // Add click handler for AI completion button
+      document.getElementById('aiCompletionBtn')?.addEventListener('click', () => {
+        this.triggerAICompletion();
+      });
+    }
+
+    scheduleAICompletion() {
+      // Clear existing timeout
+      clearTimeout(this.aiCompletionTimeout);
+      
+      // Schedule AI completion after 2 seconds of no typing
+      this.aiCompletionTimeout = setTimeout(() => {
+        if (this.aiEnabled && !this.aiRequestInProgress) {
+          this.triggerAICompletion();
+        }
+      }, 2000);
+    }
+
+    async triggerAICompletion() {
+      if (!this.aiEnabled || this.aiRequestInProgress || !this.config.canEdit) {
+        return;
+      }
+
+      const position = this.editor.getPosition();
+      const content = this.editor.getValue();
+      
+      // Don't trigger on empty content or if cursor is at start
+      if (!content.trim() || (position.lineNumber === 1 && position.column === 1)) {
+        return;
+      }
+
+      this.aiRequestInProgress = true;
+      this.updateAIStatus('loading', 'Getting AI suggestions...');
+
+      try {
+        const suggestions = await this.getAISuggestions(content, position);
+        
+        if (suggestions && suggestions.length > 0) {
+          this.showAICompletionPopup(suggestions, position);
+          this.updateAIStatus('ready', `${suggestions.length} suggestions`);
+        } else {
+          this.updateAIStatus('ready', 'No suggestions');
+          setTimeout(() => this.updateAIStatus('ready', 'AI Ready'), 2000);
+        }
+      } catch (error) {
+        console.error('AI completion error:', error);
+        this.updateAIStatus('error', 'AI Error');
+        this.showNotification('Failed to get AI suggestions: ' + error.message, 'warning');
+        setTimeout(() => this.updateAIStatus('ready', 'AI Ready'), 3000);
+      } finally {
+        this.aiRequestInProgress = false;
+      }
+    }
+
+    async getAISuggestions(content, position) {
+      const requestPayload = {
+        project_id: this.config.projectId,
+        content: content,
+        cursor_position: {
+          line: position.lineNumber,
+          column: position.column
+        },
+        language: this.config.language,
+        max_suggestions: 5,
+        file_path: this.config.fileId
+      };
+
+      const response = await fetch('/api/ai/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': document.querySelector('[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify(requestPayload)
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.status === 'success' && data.completions) {
+        return data.completions.map((completion, index) => ({
+          id: index,
+          text: completion.text,
+          confidence: completion.confidence || 0.8,
+          type: completion.type || 'suggestion',
+          description: completion.description || 'AI suggestion'
+        }));
+      } else {
+        throw new Error(data.message || 'Invalid response format');
+      }
+    }
+
+    showAICompletionPopup(suggestions, position) {
+      this.aiSuggestions = suggestions;
+      this.selectedSuggestionIndex = 0;
+      this.aiPopupVisible = true;
+
+      const popup = document.getElementById('aiCompletionPopup');
+      const suggestionsList = document.getElementById('aiSuggestionsList');
+
+      // Clear previous suggestions
+      suggestionsList.innerHTML = '';
+
+      // Populate suggestions
+      suggestions.forEach((suggestion, index) => {
+        const suggestionElement = document.createElement('div');
+        suggestionElement.className = `ai-suggestion-item ${index === 0 ? 'selected' : ''}`;
+        suggestionElement.setAttribute('data-index', index);
+        
+        const confidenceColor = this.getConfidenceColor(suggestion.confidence);
+        const confidencePercentage = Math.round(suggestion.confidence * 100);
+        
+        suggestionElement.innerHTML = `
+          <div class="suggestion-content">
+            <div class="suggestion-text">${this.escapeHtml(suggestion.text)}</div>
+            <div class="suggestion-meta">
+              <span class="suggestion-type">${suggestion.type}</span>
+              <span class="suggestion-confidence" style="color: ${confidenceColor}">
+                ${confidencePercentage}%
+              </span>
+            </div>
+          </div>
+        `;
+
+        suggestionElement.addEventListener('click', () => {
+          this.selectSuggestion(index);
+          this.acceptSelectedSuggestion();
+        });
+
+        suggestionElement.addEventListener('mouseenter', () => {
+          this.selectSuggestion(index);
+        });
+
+        suggestionsList.appendChild(suggestionElement);
+      });
+
+      // Position popup near cursor
+      this.positionAIPopup(position);
+      
+      // Show popup
+      popup.style.display = 'block';
+      popup.classList.add('fade-in');
+    }
+
+    positionAIPopup(position) {
+      const popup = document.getElementById('aiCompletionPopup');
+      const editorElement = document.getElementById('monaco-editor');
+      
+      // Get cursor coordinates in editor
+      const cursorCoords = this.editor.getScrolledVisiblePosition(position);
+      
+      if (cursorCoords) {
+        const editorRect = editorElement.getBoundingClientRect();
+        
+        let left = editorRect.left + cursorCoords.left + 10;
+        let top = editorRect.top + cursorCoords.top + 25;
+        
+        // Ensure popup doesn't go off-screen
+        const popupRect = popup.getBoundingClientRect();
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        if (left + popupRect.width > windowWidth) {
+          left = windowWidth - popupRect.width - 20;
+        }
+        
+        if (top + popupRect.height > windowHeight) {
+          top = editorRect.top + cursorCoords.top - popupRect.height - 10;
+        }
+        
+        popup.style.left = `${left}px`;
+        popup.style.top = `${top}px`;
+      }
+    }
+
+    selectSuggestion(index) {
+      if (index < 0 || index >= this.aiSuggestions.length) return;
+      
+      // Remove previous selection
+      const previousSelected = document.querySelector('.ai-suggestion-item.selected');
+      if (previousSelected) {
+        previousSelected.classList.remove('selected');
+      }
+      
+      // Add new selection
+      const newSelected = document.querySelector(`[data-index="${index}"]`);
+      if (newSelected) {
+        newSelected.classList.add('selected');
+        newSelected.scrollIntoView({ block: 'nearest' });
+      }
+      
+      this.selectedSuggestionIndex = index;
+    }
+
+    navigateAISuggestions(direction) {
+      if (!this.aiPopupVisible || this.aiSuggestions.length === 0) return;
+      
+      let newIndex = this.selectedSuggestionIndex + direction;
+      
+      if (newIndex < 0) {
+        newIndex = this.aiSuggestions.length - 1;
+      } else if (newIndex >= this.aiSuggestions.length) {
+        newIndex = 0;
+      }
+      
+      this.selectSuggestion(newIndex);
+    }
+
+    acceptSelectedSuggestion() {
+      if (!this.aiPopupVisible || this.selectedSuggestionIndex < 0 || 
+          this.selectedSuggestionIndex >= this.aiSuggestions.length) {
+        return;
+      }
+
+      const suggestion = this.aiSuggestions[this.selectedSuggestionIndex];
+      const position = this.editor.getPosition();
+      
+      // Insert the suggestion at current cursor position
+      this.editor.executeEdits('ai-completion', [{
+        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+        text: suggestion.text,
+        forceMoveMarkers: true
+      }]);
+
+      // Move cursor to end of inserted text
+      const lines = suggestion.text.split('\n');
+      const lastLine = lines[lines.length - 1];
+      const newPosition = new monaco.Position(
+        position.lineNumber + lines.length - 1,
+        lines.length === 1 ? position.column + lastLine.length : lastLine.length + 1
+      );
+      
+      this.editor.setPosition(newPosition);
+      this.editor.focus();
+
+      this.hideAICompletionPopup();
+      this.showNotification(`AI suggestion applied (${Math.round(suggestion.confidence * 100)}% confidence)`, 'success', 2000);
+      
+      // Record feedback (could be sent to AI service for learning)
+      this.recordAIFeedback(suggestion, 'accepted');
+    }
+
+    hideAICompletionPopup() {
+      const popup = document.getElementById('aiCompletionPopup');
+      popup.style.display = 'none';
+      popup.classList.remove('fade-in');
+      this.aiPopupVisible = false;
+      this.aiSuggestions = [];
+      this.selectedSuggestionIndex = 0;
+    }
+
+    updateAIStatus(status, message) {
+      const statusIndicator = document.getElementById('aiStatusIndicator');
+      const statusText = document.getElementById('aiStatusText');
+      const statusMessage = document.getElementById('aiStatusMessage');
+      
+      // Update status indicator
+      statusIndicator.className = 'ai-status-indicator';
+      
+      switch (status) {
+        case 'ready':
+          statusIndicator.classList.add('ready');
+          break;
+        case 'loading':
+          statusIndicator.classList.add('loading');
+          break;
+        case 'error':
+          statusIndicator.classList.add('error');
+          break;
+      }
+      
+      // Update status text
+      if (statusText) statusText.textContent = message;
+      if (statusMessage) statusMessage.textContent = message;
+    }
+
+    recordAIFeedback(suggestion, action) {
+      // This could be enhanced to send feedback to your AI service
+      console.log('AI Feedback:', {
+        suggestion: suggestion,
+        action: action,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    getConfidenceColor(confidence) {
+      if (confidence >= 0.8) return '#198754'; // green
+      if (confidence >= 0.6) return '#fd7e14'; // orange
+      return '#dc3545'; // red
+    }
+
+    // All the existing collaborative editor methods continue here...
+    // (keeping the rest of your original CollaborativeEditor class)
+    
     setupChannel() {
       window.App = window.App || {};
       window.App.cable = window.ActionCable.createConsumer();
@@ -398,7 +793,6 @@
             this.handleMessage(data);
           },
 
-          // Add ActionCable error handler
           error: (error) => {
             console.error('ActionCable error:', error);
           }
@@ -466,7 +860,6 @@
       if (data.users) {
         this.users.clear();
         data.users.forEach(user => {
-          // Only add other users, not the current user
           if (user.id !== this.config.userId) {
             this.users.set(user.id, user);
           }
@@ -474,7 +867,6 @@
       }
       
       if (data.recent_messages) {
-        // Clear existing messages first
         const messagesContainer = document.getElementById('chatMessages');
         messagesContainer.innerHTML = '';
         
@@ -482,7 +874,6 @@
           this.addMessage(msg, false);
         });
         
-        // If no messages, show welcome message
         if (data.recent_messages.length === 0) {
           this.showWelcomeMessage();
         }
@@ -612,7 +1003,6 @@
       
       if (!message) return;
       
-      // Send to server
       if (this.channel) {
         this.channel.perform('send_message', { message });
       }
@@ -625,7 +1015,6 @@
     addMessage(data, animate = true) {
       const messagesContainer = document.getElementById('chatMessages');
       
-      // Remove welcome message if it exists
       const welcomeMessage = messagesContainer.querySelector('.welcome-message');
       if (welcomeMessage) {
         welcomeMessage.remove();
@@ -636,7 +1025,6 @@
       
       messageElement.className = `message ${isOwnMessage ? 'own-message' : 'other-message'} mb-3`;
       
-      // Handle timestamp - could be Unix timestamp or ISO string
       let time;
       if (typeof data.timestamp === 'number') {
         time = new Date(data.timestamp * 1000).toLocaleTimeString([], { 
@@ -720,7 +1108,6 @@
       const chatContainer = document.getElementById('chatUsersList');
       const onlineCount = document.getElementById('onlineCount');
       
-      // Only show other users in the header
       const otherUsers = Array.from(this.users.values());
       const userElements = otherUsers.map(user => `
         <div class="user-avatar" 
@@ -734,9 +1121,7 @@
         container.innerHTML = userElements;
       }
       
-      // Update chat users list - show current user first, then others
       if (chatContainer) {
-        // Current user first
         const currentUserElement = `
           <div class="chat-user-item current-user">
             <div class="user-avatar-small bg-primary">
@@ -747,7 +1132,6 @@
           </div>
         `;
         
-        // Other users
         const chatUserElements = otherUsers.map(user => `
           <div class="chat-user-item">
             <div class="user-avatar-small" style="background-color: ${user.color}">
@@ -761,7 +1145,6 @@
         chatContainer.innerHTML = currentUserElement + chatUserElements;
       }
       
-      // Total count includes current user
       if (onlineCount) {
         onlineCount.textContent = this.users.size + 1;
       }
@@ -829,7 +1212,6 @@
     }
 
     updateUI() {
-      // Update UI elements with actual config values
       const fileNameEl = document.getElementById('fileName');
       const branchNameEl = document.getElementById('branchName');
       const languageModeEl = document.getElementById('languageMode');
@@ -859,35 +1241,25 @@
       try {
         const content = this.editor.getValue();
         
-        // Debug logging
-        console.log('Saving to path:', this.config.savePath);
-        console.log('Content length:', content.length);
-        
         const response = await fetch(this.config.savePath, {
-          method: 'POST', // Changed back to POST for the save route
+          method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             'X-CSRF-Token': document.querySelector('[name="csrf-token"]').getAttribute('content'),
-            'Accept': 'application/json' // Ensure we expect JSON back
+            'Accept': 'application/json'
           },
           body: new URLSearchParams({
             content: content,
-            path: this.config.currentPath // Add the path parameter as expected by your controller
+            path: this.config.currentPath
           })
         });
         
-        console.log('Save response status:', response.status);
-        console.log('Save response headers:', response.headers.get('content-type'));
-        
         if (!response.ok) {
-          // Log the actual response for debugging
           const responseText = await response.text();
-          console.error('Save failed response:', responseText);
           throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 100)}`);
         }
         
         const result = await response.json();
-        console.log('Save result:', result);
         
         if (result.status === 'success') {
           this.hasUnsavedChanges = false;
@@ -1038,7 +1410,6 @@
         </div>
       `;
 
-      // Show modal without backdrop to prevent editor blocking
       const bsModal = new bootstrap.Modal(modal, {
         backdrop: false,
         keyboard: false
@@ -1056,18 +1427,14 @@
       
       try {
         const payload = {
-          conflict_id: String(conflictId), // Ensure it's a string
-          resolution_action: action        // Use resolution_action as your Rails expects
+          conflict_id: String(conflictId),
+          resolution_action: action
         };
         
-        // Add user content for ignore action
         if (action === 'ignore') {
           payload.user_content = this.editor.getValue();
         }
         
-        console.log('Sending resolve_conflict payload:', payload);
-        
-        // Use the ActionCable perform method
         this.channel.perform('resolve_conflict', payload);
         
       } catch (error) {
@@ -1194,11 +1561,43 @@
         window.collaborativeEditor.unreadMessages = 0;
         window.collaborativeEditor.updateChatBadge();
         
-        // Focus chat input when opened
         setTimeout(() => {
           document.getElementById('messageInput')?.focus();
         }, 300);
       }
+    }
+  };
+
+  window.toggleAICompletion = function() {
+    if (!window.collaborativeEditor) return;
+    
+    window.collaborativeEditor.aiEnabled = !window.collaborativeEditor.aiEnabled;
+    const btn = document.getElementById('aiToggleBtn');
+    const statusText = document.getElementById('aiStatusText');
+    
+    if (window.collaborativeEditor.aiEnabled) {
+      btn.classList.add('active');
+      btn.title = 'AI Completion Enabled (Ctrl+Alt+A to disable)';
+      window.collaborativeEditor.updateAIStatus('ready', 'AI Ready');
+      window.collaborativeEditor.showNotification('AI completion enabled', 'success');
+    } else {
+      btn.classList.remove('active');
+      btn.title = 'AI Completion Disabled (Ctrl+Alt+A to enable)';
+      window.collaborativeEditor.hideAICompletionPopup();
+      window.collaborativeEditor.updateAIStatus('ready', 'AI Disabled');
+      window.collaborativeEditor.showNotification('AI completion disabled', 'info');
+    }
+  };
+
+  window.triggerAICompletion = function() {
+    if (window.collaborativeEditor) {
+      window.collaborativeEditor.triggerAICompletion();
+    }
+  };
+
+  window.hideAICompletionPopup = function() {
+    if (window.collaborativeEditor) {
+      window.collaborativeEditor.hideAICompletionPopup();
     }
   };
 
@@ -1264,7 +1663,6 @@
     }
   };
 
-  // Global function to close conflict modal
   window.closeConflictModal = function() {
     const modal = document.getElementById('conflictModal');
     const modalInstance = bootstrap.Modal.getInstance(modal);
@@ -1296,7 +1694,7 @@
 </script>
 
 <style>
-  /* Complete CSS for the collaborative editor */
+  /* Complete CSS for the collaborative editor with AI completion */
   :root {
     --chat-width: 350px;
     --header-height: 60px;
@@ -1308,6 +1706,7 @@
     --success-color: #198754;
     --warning-color: #ffc107;
     --danger-color: #dc3545;
+    --ai-primary: #20c997;
   }
 
   .editor-page-wrapper {
@@ -1316,6 +1715,70 @@
     background: var(--bg-light);
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  /* AI Toggle Button */
+  .ai-toggle-btn {
+    position: fixed;
+    bottom: 90px;
+    right: 20px;
+    z-index: 1050;
+    border-radius: 50%;
+    width: 48px;
+    height: 48px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: none;
+    background: var(--ai-primary);
+    color: white;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+  }
+
+  .ai-toggle-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+    background: #1aa884;
+  }
+
+  .ai-toggle-btn.active {
+    background: var(--success-color);
+    animation: ai-pulse 2s infinite;
+  }
+
+  @keyframes ai-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  .ai-status-indicator {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 2px solid white;
+  }
+
+  .ai-status-indicator.ready {
+    background: var(--success-color);
+  }
+
+  .ai-status-indicator.loading {
+    background: var(--warning-color);
+    animation: loading-pulse 1s infinite;
+  }
+
+  .ai-status-indicator.error {
+    background: var(--danger-color);
+  }
+
+  @keyframes loading-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
   }
 
   /* Chat Toggle Button - moved to bottom right */
@@ -1423,9 +1886,13 @@
     border: 1px solid #bbdefb;
   }
 
-  .connection-status {
+  .connection-status, .ai-status {
     display: flex;
     align-items: center;
+  }
+
+  .ai-status .bi-robot {
+    color: var(--ai-primary);
   }
 
   .editor-actions {
@@ -1494,6 +1961,110 @@
     border: none;
   }
 
+  /* AI Completion Popup */
+  .ai-completion-popup {
+    position: fixed;
+    background: white;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    z-index: 1000;
+    min-width: 400px;
+    max-width: 600px;
+    max-height: 400px;
+    overflow: hidden;
+    font-size: 14px;
+  }
+
+  .ai-completion-popup.fade-in {
+    animation: fadeInUp 0.2s ease-out;
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .ai-popup-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-light);
+    font-size: 13px;
+  }
+
+  .ai-suggestions-list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .ai-suggestion-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+  }
+
+  .ai-suggestion-item:hover,
+  .ai-suggestion-item.selected {
+    background: #f8f9fa;
+  }
+
+  .ai-suggestion-item.selected {
+    background: #e3f2fd;
+    border-left: 3px solid var(--ai-primary);
+  }
+
+  .suggestion-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .suggestion-text {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #2d3748;
+    white-space: pre-wrap;
+    background: #f7fafc;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border-left: 3px solid var(--ai-primary);
+  }
+
+  .suggestion-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+  }
+
+  .suggestion-type {
+    background: #e2e8f0;
+    color: #4a5568;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 500;
+  }
+
+  .suggestion-confidence {
+    font-weight: 600;
+  }
+
+  .ai-popup-footer {
+    padding: 8px 16px;
+    background: var(--bg-light);
+    border-top: 1px solid var(--border-color);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
   /* Editor Status Bar */
   .editor-status-bar {
     height: var(--status-height);
@@ -1518,6 +2089,10 @@
     align-items: center;
     gap: 4px;
     white-space: nowrap;
+  }
+
+  #aiCompletionStatus .bi-robot {
+    color: var(--ai-primary);
   }
 
   /* Chat Sidebar */
@@ -1803,23 +2378,27 @@
 
   /* Custom Scrollbars */
   .chat-messages::-webkit-scrollbar,
-  .chat-users-list::-webkit-scrollbar {
+  .chat-users-list::-webkit-scrollbar,
+  .ai-suggestions-list::-webkit-scrollbar {
     width: 6px;
   }
 
   .chat-messages::-webkit-scrollbar-track,
-  .chat-users-list::-webkit-scrollbar-track {
+  .chat-users-list::-webkit-scrollbar-track,
+  .ai-suggestions-list::-webkit-scrollbar-track {
     background: var(--bg-light);
   }
 
   .chat-messages::-webkit-scrollbar-thumb,
-  .chat-users-list::-webkit-scrollbar-thumb {
+  .chat-users-list::-webkit-scrollbar-thumb,
+  .ai-suggestions-list::-webkit-scrollbar-thumb {
     background: var(--border-color);
     border-radius: 3px;
   }
 
   .chat-messages::-webkit-scrollbar-thumb:hover,
-  .chat-users-list::-webkit-scrollbar-thumb:hover {
+  .chat-users-list::-webkit-scrollbar-thumb:hover,
+  .ai-suggestions-list::-webkit-scrollbar-thumb:hover {
     background: #adb5bd;
   }
 
@@ -1855,12 +2434,28 @@
       --header-height: auto;
     }
 
+    .ai-toggle-btn {
+      bottom: 100px;
+      right: 15px;
+      width: 44px;
+      height: 44px;
+      font-size: 16px;
+    }
+
     .chat-toggle-btn-bottom {
       bottom: 15px;
       right: 15px;
       width: 48px;
       height: 48px;
       font-size: 18px;
+    }
+
+    .ai-completion-popup {
+      min-width: 300px;
+      max-width: calc(100vw - 40px);
+      left: 20px !important;
+      right: 20px !important;
+      width: auto !important;
     }
 
     .editor-header {
@@ -1943,6 +2538,10 @@
     .chat-input {
       padding: 12px;
     }
+
+    .suggestion-text {
+      font-size: 12px;
+    }
   }
 
   /* High contrast mode support */
@@ -1958,6 +2557,10 @@
     .message-content {
       border: 2px solid var(--border-color);
     }
+
+    .ai-completion-popup {
+      border: 2px solid var(--border-color);
+    }
   }
 
   /* Reduced motion support */
@@ -1965,7 +2568,9 @@
     .chat-sidebar,
     .editor-container,
     .chat-toggle-btn-bottom,
-    .message {
+    .ai-toggle-btn,
+    .message,
+    .ai-completion-popup {
       transition: none;
       animation: none;
     }
@@ -1974,7 +2579,8 @@
       animation: none;
     }
 
-    .chat-notification-badge {
+    .chat-notification-badge,
+    .ai-toggle-btn.active {
       animation: none;
     }
   }
