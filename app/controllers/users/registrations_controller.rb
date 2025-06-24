@@ -1,8 +1,9 @@
-# Update your app/controllers/users/registrations_controller.rb
+# app/controllers/users/registrations_controller.rb
 
 class Users::RegistrationsController < Devise::RegistrationsController
+  prepend_before_action :check_captcha, only: [:create]
   before_action :configure_permitted_parameters
-  before_action :find_pending_user, only: [ :email_verification, :verify_email, :resend_verification ]
+  before_action :find_pending_user, only: [:email_verification, :verify_email, :resend_verification]
 
   def create
     build_resource(sign_up_params)
@@ -78,11 +79,106 @@ class Users::RegistrationsController < Devise::RegistrationsController
   protected
 
   def configure_permitted_parameters
-    devise_parameter_sanitizer.permit(:sign_up, keys: [ :username ])
-    devise_parameter_sanitizer.permit(:account_update, keys: [ :username ])
+    devise_parameter_sanitizer.permit(:sign_up, keys: [:username])
+    devise_parameter_sanitizer.permit(:account_update, keys: [:username])
   end
 
   private
+
+  def check_captcha
+    # Debug logging
+    Rails.logger.info "=== reCAPTCHA Debug ==="
+    Rails.logger.info "Standard reCAPTCHA token: #{params['g-recaptcha-response']}"
+    Rails.logger.info "reCAPTCHA v3 data: #{params['g-recaptcha-response-data']}"
+    Rails.logger.info "Site key: #{ENV['RECAPTCHA_SITE_KEY']}"
+    Rails.logger.info "Secret key present: #{ENV['RECAPTCHA_SECRET_KEY'].present?}"
+    
+    # Check if we should skip reCAPTCHA (for development)
+    if Rails.env.development? && ENV['SKIP_RECAPTCHA'] == 'true'
+      Rails.logger.info "Skipping reCAPTCHA in development"
+      return true
+    end
+    
+    # Get the reCAPTCHA token from v3 response data
+    recaptcha_token = nil
+    if params['g-recaptcha-response-data'].present? && params['g-recaptcha-response-data']['signup'].present?
+      recaptcha_token = params['g-recaptcha-response-data']['signup']
+    elsif params['g-recaptcha-response'].present?
+      recaptcha_token = params['g-recaptcha-response']
+    end
+    
+    Rails.logger.info "Using reCAPTCHA token: #{recaptcha_token.present? ? 'Present' : 'Missing'}"
+    
+    # If no token, fail
+    unless recaptcha_token.present?
+      Rails.logger.error "No reCAPTCHA token found"
+      handle_captcha_failure
+      return false
+    end
+    
+    # Verify with Google's API manually since the gem might have issues with v3
+    verification_result = verify_recaptcha_manually(recaptcha_token, 'signup')
+    
+    if verification_result[:success]
+      Rails.logger.info "reCAPTCHA verification successful"
+      return true
+    else
+      Rails.logger.error "reCAPTCHA verification failed: #{verification_result[:error]}"
+      handle_captcha_failure
+      return false
+    end
+  end
+
+  def verify_recaptcha_manually(token, action)
+    require 'net/http'
+    require 'json'
+    
+    uri = URI('https://www.google.com/recaptcha/api/siteverify')
+    response = Net::HTTP.post_form(uri, {
+      'secret' => ENV['RECAPTCHA_SECRET_KEY'],
+      'response' => token,
+      'remoteip' => request.remote_ip
+    })
+    
+    result = JSON.parse(response.body)
+    Rails.logger.info "Google reCAPTCHA response: #{result}"
+    
+    if result['success']
+      score = result['score']
+      returned_action = result['action']
+      
+      Rails.logger.info "reCAPTCHA score: #{score}"
+      Rails.logger.info "reCAPTCHA action: #{returned_action}"
+      
+      # Check score (for v3, should be > 0.5)
+      if score && score >= 0.5
+        { success: true, score: score }
+      else
+        { success: false, error: "Score too low: #{score}" }
+      end
+    else
+      { success: false, error: result['error-codes'] || 'Unknown error' }
+    end
+  rescue => e
+    Rails.logger.error "reCAPTCHA verification error: #{e.message}"
+    { success: false, error: e.message }
+  end
+
+  def handle_captcha_failure
+    # Build the resource for validation
+    self.resource = resource_class.new sign_up_params
+    resource.validate # Look for any other validation errors besides reCAPTCHA
+    set_minimum_password_length
+    
+    # Add reCAPTCHA error to the resource
+    resource.errors.add(:base, "reCAPTCHA verification failed. Please try again.")
+    
+    # Set flash message
+    flash.now[:alert] = "reCAPTCHA verification failed. Please try again."
+    
+    # Render the new template with errors
+    render :new, status: :unprocessable_entity
+  end
 
   def find_pending_user
     # First check session, then check if current user needs verification

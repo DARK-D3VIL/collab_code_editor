@@ -1,10 +1,12 @@
-<!-- Update your app/views/devise/sessions/new.html.erb -->
-
+<!-- app/views/devise/sessions/new.html.erb -->
 <div class="d-flex justify-content-center align-items-center min-vh-100 bg-light">
   <div class="card shadow-sm p-4" style="width: 100%; max-width: 420px;">
     <h2 class="text-center mb-4">Welcome Back</h2>
 
     <%= simple_form_for(resource, as: resource_name, url: session_path(resource_name), html: { class: "mb-0" }) do |f| %>
+      <!-- reCAPTCHA v3 - Add this line -->
+      <%= recaptcha_v3(action: 'login') %>
+      
       <div class="mb-3">
         <%= f.input :email,
                     required: true,
@@ -47,7 +49,6 @@
       <%= link_to "Sign up", new_registration_path(resource_name), class: "text-decoration-none" %>
     </p>
     
-    <!-- Add verification link -->
     <div class="text-center mb-2">
       <% if session[:pending_user_id] %>
         <%= link_to "Didn't receive verification email?", email_verification_path, class: "text-decoration-none small" %>

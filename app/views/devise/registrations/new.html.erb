@@ -1,9 +1,13 @@
+<!-- app/views/devise/registrations/new.html.erb -->
 <div class="d-flex justify-content-center align-items-center min-vh-100 bg-light">
   <div class="card shadow-sm p-4" style="width: 100%; max-width: 420px;">
     <h2 class="text-center mb-4">Create Your Account</h2>
 
     <%= simple_form_for(resource, as: resource_name, url: registration_path(resource_name), html: { class: "mb-0" }) do |f| %>
       <%= f.error_notification %>
+      
+      <!-- reCAPTCHA v3 - Add this line -->
+      <%= recaptcha_v3(action: 'signup') %>
 
       <div class="mb-3">
         <%= f.input :username,
