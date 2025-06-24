@@ -1,0 +1,114 @@
+<!-- app/views/account_deletion_mailer/send_deletion_otp.html.erb -->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Account Deletion Verification</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f8f9fa;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .warning-icon {
+      font-size: 48px;
+      color: #dc3545;
+      margin-bottom: 20px;
+    }
+    .otp-code {
+      background: linear-gradient(135deg, #dc3545, #c82333);
+      color: white;
+      font-size: 32px;
+      font-weight: bold;
+      letter-spacing: 8px;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      margin: 30px 0;
+      font-family: 'Courier New', monospace;
+    }
+    .warning-box {
+      background: rgba(220, 53, 69, 0.1);
+      border: 1px solid rgba(220, 53, 69, 0.3);
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+    }
+    .footer {
+      text-align: center;
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      color: #666;
+      font-size: 14px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 12px 24px;
+      background: #007bff;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="warning-icon">⚠️</div>
+      <h1 style="color: #dc3545; margin: 0;">Account Deletion Request</h1>
+      <p style="color: #666; margin: 10px 0;">Verification required to proceed</p>
+    </div>
+
+    <p>Hello <strong><%= @user.username || @user.email %></strong>,</p>
+
+    <p>We received a request to permanently delete your account. To proceed with this irreversible action, please use the verification code below:</p>
+
+    <div class="otp-code">
+      <%= @otp %>
+    </div>
+
+    <div class="warning-box">
+      <h3 style="color: #dc3545; margin-top: 0;">⚠️ Important Warning</h3>
+      <p><strong>This action will permanently:</strong></p>
+      <ul>
+        <li>Delete all your owned projects and their data</li>
+        <li>Remove you from all joined projects</li>
+        <li>Erase all your personal data and settings</li>
+        <li>Cancel all pending join requests</li>
+      </ul>
+      <p><strong>This cannot be undone!</strong></p>
+    </div>
+
+    <p><strong>Security Information:</strong></p>
+    <ul>
+      <li>This code expires in <strong><%= @expires_in %> minutes</strong></li>
+      <li>Do not share this code with anyone</li>
+      <li>If you didn't request this, please ignore this email and secure your account</li>
+    </ul>
+
+    <p>If you did not request account deletion, please contact our support team immediately.</p>
+
+    <div class="footer">
+      <p>This is an automated security email from Your App</p>
+      <p>If you have questions, contact us at security@yourapp.com</p>
+    </div>
+  </div>
+</body>
+</html>

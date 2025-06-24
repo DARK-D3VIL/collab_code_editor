@@ -1,0 +1,88 @@
+<div class="container py-4">
+  <div class="d-flex align-items-center mb-4">
+    <i class="bi bi-git fs-3 text-dark me-2"></i>
+    <h2 class="fw-semibold mb-0 text-dark-emphasis">Clone a GitHub Repository</h2>
+  </div>
+
+  <% if @repos.present? %>
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+      <% @repos.each do |repo| %>
+        <div class="col">
+          <%= form_with url: github_clone_path, method: :post, class: "h-100 clone-form", data: { turbo: false } do %>
+            <%= hidden_field_tag :repo_name, repo["name"] %>
+            <%= hidden_field_tag :clone_url, repo["clone_url"] %>
+
+            <div class="card h-100 border-0 shadow-sm rounded-4">
+              <div class="card-body d-flex flex-column justify-content-between">
+                <div>
+                  <h5 class="card-title fw-semibold text-body mb-2">
+                    <i class="bi bi-github me-1 text-dark"></i> <%= repo["full_name"] %>
+                  </h5>
+                  <% if repo["description"].present? %>
+                    <p class="text-secondary small mb-0">
+                      <%= truncate(repo["description"], length: 100) %>
+                    </p>
+                  <% end %>
+                </div>
+
+                <div class="mt-4 d-flex justify-content-between align-items-center">
+                  <span class="badge bg-light border text-muted fw-normal small px-2 py-1">
+                    <i class="bi bi-star-fill text-warning me-1"></i> <%= repo["stargazers_count"] %> &nbsp;
+                    <i class="bi bi-dot mx-1 text-muted"></i>
+                    <i class="bi bi-code-slash me-1 text-primary"></i> <%= repo["language"] || "Unknown" %>
+                  </span>
+
+                  <button type="submit" class="btn btn-outline-primary btn-sm px-3 py-1 clone-btn position-relative">
+                    <span class="default-text"><i class="bi bi-download me-1"></i>Clone</span>
+                    <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <% else %>
+    <div class="alert alert-info text-center mt-4 rounded-3 shadow-sm">
+      <i class="bi bi-info-circle-fill me-2"></i> No repositories found. Please ensure your GitHub account has accessible repositories.
+    </div>
+  <% end %>
+</div>
+
+<style>
+  body {
+    background-color: #f8f9fb;
+  }
+
+  .clone-btn {
+    min-width: 100px;
+    transition: all 0.2s ease-in-out;
+  }
+
+  .card {
+    transition: transform 0.2s ease;
+  }
+
+  .card:hover {
+    transform: translateY(-2px);
+  }
+  #loadingOverlay {
+  z-index: 1055; /* Ensure it's above all content */
+}
+</style>
+<div id="loadingOverlay" class="d-none position-fixed top-0 start-0 w-100 h-100 bg-white bg-opacity-75 z-3 d-flex justify-content-center align-items-center">
+  <div class="text-center">
+    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+    <p class="mt-3 text-muted">Cloning repository...</p>
+  </div>
+</div>
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".clone-form").forEach(form => {
+      form.addEventListener("submit", function () {
+        document.getElementById("loadingOverlay").classList.remove("d-none");
+      });
+    });
+  });
+</script>

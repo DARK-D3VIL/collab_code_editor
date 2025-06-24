@@ -1,0 +1,199 @@
+<% content_for :title, "Branches" %>
+
+<div class="container-fluid p-0">
+  <div class="row g-0">
+    <!-- Sidebar -->
+    <%= render 'partials/sidebar' %>
+
+    <!-- Main Content -->
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-5 py-4 bg-light min-vh-100">
+      <!-- Toggle Menu for Mobile -->
+      <div class="d-md-none mb-3">
+        <button class="btn btn-sm btn-light border w-100 d-flex align-items-center justify-content-center gap-2" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
+          <i class="bi bi-list fs-5"></i>
+          <span class="fw-medium">Toggle Menu</span>
+        </button>
+      </div>
+
+      <!-- Branches Header -->
+      <div class="mb-3">
+        <h2 class="fw-semibold mb-1">Branches</h2>
+        <div class="mt-1 ms-1 border-start ps-3 text-muted small" style="border-color: #0d6efd;">
+          Current Branch: <strong class="text-dark"><%= @current_branch %></strong>
+          <% unless can_write? %>
+            <span class="badge bg-secondary ms-2">Read Only</span>
+          <% end %>
+        </div>
+      </div>
+
+      <!-- Branch creation - Only show for writers -->
+      <% if can_write? %>
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <%= form_with url: project_git_branches_path(@project), method: :post, local: true do |f| %>
+              <div class="input-group">
+                <%= f.text_field :name, class: "form-control", placeholder: "Enter new branch name..." %>
+                <button class="btn btn-primary" type="submit">Create</button>
+              </div>
+            <% end %>
+          </div>
+        </div>
+      <% else %>
+        <div class="alert alert-info mb-4">
+          <i class="bi bi-info-circle me-2"></i>
+          You have read-only access to this project. Branch creation and modification are not available.
+        </div>
+      <% end %>
+
+      <!-- Branch List -->
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Branch Name</th>
+                <th>Created At</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% @branches.each do |branch| %>
+                <tr>
+                  <td><strong><%= branch.name %></strong></td>
+                  <td><%= branch.created_at.strftime("%Y-%m-%d") %></td>
+                  <td class="d-flex align-items-center gap-2">
+                    <% if can_write? && branch.name != @current_branch %>
+                      <%= button_to "Switch", project_git_switch_branch_path(@project, branch), method: :post, class: "btn btn-sm btn-outline-success" %>
+                    <% end %>
+                    <div class="dropdown">
+                      <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="dropdown">
+                        <i class="bi bi-three-dots-vertical"></i>
+                      </button>
+                      <ul class="dropdown-menu">
+                        <% if can_write? && branch.name != @current_branch %>
+                          <li>
+                            <%= button_to "Merge into #{@current_branch}", project_git_merge_branch_path(@project, branch), method: :post, class: "dropdown-item text-warning" %>
+                          </li>
+                        <% end %>
+                        <li>
+                          <%= link_to "View Commits", project_git_branch_commits_path(@project, branch), class: "dropdown-item text-info" %>
+                        </li>
+                        <% if can_write? && branch.name != "main" && branch.name != @current_branch %>
+                          <li>
+                            <button class="dropdown-item text-danger" data-bs-toggle="modal" data-bs-target="#deleteBranchModal" data-branch="<%= branch.name %>" data-url="<%= project_git_branch_path(@project, branch) %>">
+                              Delete
+                            </button>
+                          </li>
+                        <% end %>
+                      </ul>
+                    </div>
+                  </td>
+                </tr>
+              <% end %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Delete Branch Modal - Only show for writers -->
+<% if can_write? %>
+  <div class="modal fade" id="deleteBranchModal" tabindex="-1" aria-labelledby="deleteBranchModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow">
+        <div class="modal-header bg-danger text-white">
+          <h5 class="modal-title" id="deleteBranchModalLabel">Delete Branch</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          Are you sure you want to delete the branch <strong id="branchNamePlaceholder"></strong>?
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <%= form_with url: "", html: { id: "deleteBranchForm" }, method: :delete, local: true do |f| %>
+            <button type="submit" class="btn btn-danger">Delete</button>
+          <% end %>
+        </div>
+      </div>
+    </div>
+  </div>
+<% end %>
+
+<!-- JS -->
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const modal = document.getElementById("deleteBranchModal")
+    if (modal) {
+      modal.addEventListener("show.bs.modal", event => {
+        const button = event.relatedTarget
+        const branch = button.getAttribute("data-branch")
+        const url = button.getAttribute("data-url")
+
+        modal.querySelector("#branchNamePlaceholder").textContent = branch
+        modal.querySelector("#deleteBranchForm").setAttribute("action", url)
+      })
+    }
+  })
+</script>
+
+<!-- Styles -->
+<style>
+  .sidebar {
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #ffffff;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar .nav-link {
+    color: #333;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+  }
+
+  .sidebar .nav-link:hover {
+    background-color: #f1f3f5;
+    border-left-color: #0d6efd;
+  }
+
+  .sidebar .nav-link.active {
+    color: #0d6efd;
+    background-color: #e9f3ff;
+    border-left: 4px solid #0d6efd;
+  }
+
+  .table td, .table th {
+    vertical-align: middle;
+  }
+
+  .dropdown-toggle::after {
+    display: none;
+  }
+
+  .dropdown-menu {
+    min-width: 180px;
+  }
+
+  .dropdown-menu .dropdown-item {
+    font-size: 0.875rem;
+    padding: 0.5rem 1rem;
+  }
+
+  .badge {
+    font-size: 0.95rem;
+    border-radius: 1rem;
+  }
+
+  .current-branch-label {
+    font-size: 0.875rem;
+    color: #555;
+    border-left: 3px solid #0d6efd;
+    padding-left: 0.75rem;
+    margin-top: 0.25rem;
+  }
+</style>

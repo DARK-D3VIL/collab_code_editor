@@ -1,0 +1,372 @@
+<%# app/views/project_settings/show.html.erb %>
+<div class="container">
+  <div class="row g-0">
+    <%= render 'partials/sidebar' %>
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 pb-5">
+      
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h2 class="mb-1 text-dark-emphasis fw-semibold">
+            <i class="bi bi-gear me-2 text-primary"></i><%= @project.name %> Settings
+          </h2>
+          <p class="text-muted mb-0">
+            Manage project configuration and settings
+          </p>
+        </div>
+      </div>
+
+      <!-- Flash Messages -->
+      <% if flash[:notice] %>
+        <div class="alert alert-success alert-dismissible fade show rounded-3" role="alert">
+          <i class="bi bi-check-circle me-2"></i><%= flash[:notice] %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      <% end %>
+      
+      <% if flash[:alert] %>
+        <div class="alert alert-danger alert-dismissible fade show rounded-3" role="alert">
+          <i class="bi bi-exclamation-triangle me-2"></i><%= flash[:alert] %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      <% end %>
+
+      <div class="row g-4">
+        <!-- Basic Settings -->
+        <div class="col-12">
+          <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+            <div class="card-header bg-white border-bottom" style="border-radius: 16px 16px 0 0;">
+              <div class="d-flex align-items-center py-2">
+                <div class="bg-light border rounded-3 p-2 me-3">
+                  <i class="bi bi-gear text-secondary"></i>
+                </div>
+                <h5 class="card-title mb-0 text-dark fw-semibold">Basic Settings</h5>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <%= form_with model: @project, url: project_settings_path(@project), method: :patch, local: true do |form| %>
+                <%= hidden_field_tag :setting_type, 'basic', id: 'basic_setting_type' %>
+                
+                <div class="row g-3">
+                  <div class="col-md-8">
+                    <%= form.label :name, class: "form-label fw-medium text-dark" %>
+                    <%= form.text_field :name, class: "form-control rounded-3", placeholder: "Enter project name" %>
+                  </div>
+                  
+                  <div class="col-md-4">
+                    <label class="form-label fw-medium text-dark">Project Code</label>
+                    <div class="input-group">
+                      <input type="text" class="form-control rounded-start-3" value="<%= @project.slug %>" readonly>
+                      <div class="input-group-text bg-light border-start-0 rounded-end-3">
+                        <%= check_box_tag :generate_new_slug, 'true', false, class: "form-check-input me-2", id: "generate_new_slug" %>
+                        <label for="generate_new_slug" class="form-check-label small text-muted mb-0">
+                          Generate New
+                        </label>
+                      </div>
+                    </div>
+                    <small class="text-muted">Members use this code to join your project</small>
+                  </div>
+                </div>
+                
+                <div class="d-flex justify-content-end mt-4">
+                  <%= form.submit "Update Project", class: "btn btn-primary rounded-pill px-4" %>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Training Settings -->
+        <div class="col-12">
+          <div class="card border-0 shadow-sm" style="border-radius: 16px;">
+            <div class="card-header bg-white border-bottom" style="border-radius: 16px 16px 0 0;">
+              <div class="d-flex align-items-center py-2">
+                <div class="bg-light border rounded-3 p-2 me-3">
+                  <i class="bi bi-robot text-secondary"></i>
+                </div>
+                <h5 class="card-title mb-0 text-dark fw-semibold">AI Training</h5>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="row g-4">
+                <div class="col-md-8">
+                  <h6 class="fw-semibold text-dark mb-2">AI Model Status</h6>
+                  <div id="ai-status-container">
+                    <div class="d-flex align-items-center mb-3">
+                      <span class="badge rounded-pill me-3" id="ai-status-badge">
+                        <i class="bi bi-circle-fill me-1"></i>
+                        Loading...
+                      </span>
+                      <span class="text-muted small" id="ai-status-text">Checking status...</span>
+                    </div>
+                    
+                    <div id="ai-progress-container" class="d-none">
+                      <div class="progress rounded-3 mb-2" style="height: 8px;">
+                        <div class="progress-bar" role="progressbar" id="ai-progress-bar"></div>
+                      </div>
+                      <small class="text-muted" id="ai-progress-text"></small>
+                    </div>
+                  </div>
+                  
+                  <p class="text-muted small mb-0">
+                    AI training enables intelligent code completion and suggestions based on your project's codebase.
+                    Training typically takes 15-20 minutes.
+                  </p>
+                </div>
+                
+                <div class="col-md-4 text-md-end">
+                  <%= form_with url: project_settings_path(@project), method: :patch, local: true, id: "ai-training-form" do |form| %>
+                    <%= hidden_field_tag :setting_type, 'ai_training', id: 'ai_training_setting_type' %>
+                    
+                    <div class="d-grid gap-2">
+                      <%= form.submit "Start Training", 
+                                      class: "btn btn-success rounded-pill", 
+                                      id: "start-training-btn",
+                                      onclick: "this.disabled = true; this.textContent = 'Starting...';",
+                                      data: { confirm: "Start AI training for this project? This will take 15-20 minutes." } %>
+                      
+                      <%= form.submit "Start New Training", 
+                                      class: "btn btn-warning rounded-pill d-none", 
+                                      id: "retrain-btn",
+                                      onclick: "document.getElementById('force_retrain').value = 'true'; this.disabled = true; this.textContent = 'Starting...';",
+                                      data: { confirm: "Start new AI training? This will replace the existing model and take 15-20 minutes." } %>
+                                      
+                      <%= hidden_field_tag :force_retrain, 'false', id: 'force_retrain' %>
+                    </div>
+                  <% end %>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Transfer Ownership -->
+        <div class="col-12">
+          <div class="card border-0 shadow-sm border-warning" style="border-radius: 16px;">
+            <div class="card-header bg-warning bg-opacity-10 border-bottom border-warning" style="border-radius: 16px 16px 0 0;">
+              <div class="d-flex align-items-center py-2">
+                <div class="bg-warning bg-opacity-25 border border-warning rounded-3 p-2 me-3">
+                  <i class="bi bi-person-gear text-warning"></i>
+                </div>
+                <h5 class="card-title mb-0 text-dark fw-semibold">Transfer Ownership</h5>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <% if @potential_owners.any? %>
+                <%= form_with url: project_settings_path(@project), method: :patch, local: true do |form| %>
+                  <%= hidden_field_tag :setting_type, 'transfer_ownership', id: 'transfer_setting_type' %>
+                  
+                  <div class="row g-3">
+                    <div class="col-md-6">
+                      <%= label_tag :new_owner_id, "New Owner", class: "form-label fw-medium text-dark" %>
+                      <%= select_tag :new_owner_id, 
+                                     options_from_collection_for_select(@potential_owners, :id, :email), 
+                                     { prompt: "Select new owner...", class: "form-select rounded-3" } %>
+                      <small class="text-muted">Only active members with write access are shown</small>
+                    </div>
+                    
+                    <div class="col-md-6">
+                      <%= label_tag :current_password, "Your Password", class: "form-label fw-medium text-dark" %>
+                      <%= password_field_tag :current_password, nil, 
+                                             class: "form-control rounded-3", 
+                                             placeholder: "Enter your password to confirm" %>
+                      <small class="text-muted">Required for security verification</small>
+                    </div>
+                  </div>
+                  
+                  <div class="d-flex justify-content-end mt-4">
+                    <%= form.submit "Transfer Ownership", 
+                                    class: "btn btn-warning rounded-pill px-4",
+                                    data: { 
+                                      confirm: "Are you sure you want to transfer ownership?\n\nYou will become a regular member and lose owner privileges.\nThis action cannot be undone." 
+                                    } %>
+                  </div>
+                <% end %>
+              <% else %>
+                <div class="text-center py-4">
+                  <i class="bi bi-people text-muted" style="font-size: 2rem;"></i>
+                  <p class="text-muted mt-2 mb-0">No eligible members for ownership transfer.</p>
+                  <small class="text-muted">Add members with write access to enable ownership transfer.</small>
+                </div>
+              <% end %>
+            </div>
+          </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="col-12">
+          <div class="card border-0 shadow-sm border-danger" style="border-radius: 16px;">
+            <div class="card-header bg-danger bg-opacity-10 border-bottom border-danger" style="border-radius: 16px 16px 0 0;">
+              <div class="d-flex align-items-center py-2">
+                <div class="bg-danger bg-opacity-25 border border-danger rounded-3 p-2 me-3">
+                  <i class="bi bi-exclamation-triangle text-danger"></i>
+                </div>
+                <h5 class="card-title mb-0 text-dark fw-semibold">Danger Zone</h5>
+              </div>
+            </div>
+            <div class="card-body p-4">
+              <div class="d-flex align-items-center justify-content-between">
+                <div>
+                  <h6 class="fw-semibold text-dark mb-1">Delete Project</h6>
+                  <p class="text-muted small mb-0">
+                    Permanently delete this project and all its data. This action cannot be undone.
+                  </p>
+                </div>
+                <%= button_to "Delete Project", 
+                              project_settings_path(@project), 
+                              method: :delete,
+                              class: "btn btn-danger rounded-pill px-4",
+                              data: { 
+                                confirm: "Are you absolutely sure?\n\nThis will permanently delete:\n• Project '#{@project.name}'\n• All files and code\n• All branches and commit history\n• All member access\n\nType the project name below to confirm: #{@project.name}",
+                                prompt: "Please type '#{@project.name}' to confirm deletion:"
+                              },
+                              onclick: "return confirmProjectDeletion('#{@project.name}', event);" %>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- JavaScript for AI Status and Enhanced Confirmations -->
+<script>
+  // AI Training Status Management
+  document.addEventListener('DOMContentLoaded', function() {
+    checkAiStatus();
+    
+    // Check status every 30 seconds if training is in progress
+    setInterval(function() {
+      const statusBadge = document.getElementById('ai-status-badge');
+      if (statusBadge && (statusBadge.textContent.includes('Training') || statusBadge.textContent.includes('Queued'))) {
+        checkAiStatus();
+      }
+    }, 30000);
+  });
+
+  function checkAiStatus() {
+    fetch('<%= project_ai_training_status_path(@project) %>')
+      .then(response => response.json())
+      .then(data => updateAiStatus(data))
+      .catch(error => console.error('Error checking AI status:', error));
+  }
+    function updateAiStatus(data) {
+    const statusBadge = document.getElementById('ai-status-badge');
+    const statusText = document.getElementById('ai-status-text');
+    const progressContainer = document.getElementById('ai-progress-container');
+    const progressBar = document.getElementById('ai-progress-bar');
+    const progressText = document.getElementById('ai-progress-text');
+    const startBtn = document.getElementById('start-training-btn');
+    const retrainBtn = document.getElementById('retrain-btn');
+
+    // Update status badge
+    switch(data.status) {
+        case 'not_started':
+        statusBadge.className = 'badge bg-secondary rounded-pill me-3';
+        statusBadge.innerHTML = '<i class="bi bi-circle-fill me-1"></i>Not Started';
+        statusText.textContent = 'AI training has not been started for this project.';
+        startBtn.style.display = 'block';
+        startBtn.classList.remove('d-none');
+        retrainBtn.style.display = 'none';
+        retrainBtn.classList.add('d-none');
+        progressContainer.classList.add('d-none');
+        break;
+        
+        case 'queued':
+        statusBadge.className = 'badge bg-info rounded-pill me-3';
+        statusBadge.innerHTML = '<i class="bi bi-clock-fill me-1"></i>Queued';
+        statusText.textContent = 'Training request is queued and will start shortly.';
+        startBtn.style.display = 'none';
+        startBtn.classList.add('d-none');
+        retrainBtn.style.display = 'none';
+        retrainBtn.classList.add('d-none');
+        progressContainer.classList.remove('d-none');
+        progressBar.style.width = '10%';
+        progressText.textContent = 'Waiting to start...';
+        break;
+        
+        case 'training':
+        statusBadge.className = 'badge bg-warning rounded-pill me-3';
+        statusBadge.innerHTML = '<i class="bi bi-gear-fill me-1"></i>Training';
+        statusText.textContent = 'AI model is currently being trained.';
+        startBtn.style.display = 'none';
+        startBtn.classList.add('d-none');
+        retrainBtn.style.display = 'none';
+        retrainBtn.classList.add('d-none');
+        progressContainer.classList.remove('d-none');
+        
+        if (data.latest_job && data.latest_job.progress) {
+            progressBar.style.width = data.latest_job.progress + '%';
+            progressText.textContent = `Training progress: ${data.latest_job.progress}%`;
+        } else {
+            progressBar.style.width = '50%';
+            progressText.textContent = 'Training in progress...';
+        }
+        break;
+        
+        case 'completed':
+        statusBadge.className = 'badge bg-success rounded-pill me-3';
+        statusBadge.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i>Completed';
+        statusText.textContent = 'AI model is trained and ready for use.';
+        startBtn.style.display = 'none';
+        startBtn.classList.add('d-none');
+        retrainBtn.style.display = 'block';
+        retrainBtn.classList.remove('d-none'); // This is the key fix!
+        progressContainer.classList.add('d-none');
+        break;
+        
+        case 'failed':
+        statusBadge.className = 'badge bg-danger rounded-pill me-3';
+        statusBadge.innerHTML = '<i class="bi bi-x-circle-fill me-1"></i>Failed';
+        statusText.textContent = 'Training failed. You can try starting training again.';
+        startBtn.style.display = 'block';
+        startBtn.classList.remove('d-none');
+        retrainBtn.style.display = 'none';
+        retrainBtn.classList.add('d-none');
+        progressContainer.classList.add('d-none');
+        break;
+    }
+    }
+
+  // Enhanced project deletion confirmation
+  function confirmProjectDeletion(projectName, event) {
+    event.preventDefault();
+    
+    const userInput = prompt(`Please type '${projectName}' to confirm deletion:`);
+    
+    if (userInput === projectName) {
+      if (confirm(`Final confirmation: This will permanently delete the project '${projectName}' and all its data. This action cannot be undone.`)) {
+        // Submit the form
+        event.target.closest('form').submit();
+        return true;
+      }
+    } else if (userInput !== null) {
+      alert('Project name did not match. Deletion cancelled.');
+    }
+    
+    return false;
+  }
+
+  // Test function to simulate completed state
+  function testCompletedState() {
+    console.log('🧪 Testing completed state...');
+    console.log('🔍 About to call updateAiStatus...');
+    
+    try {
+      updateAiStatus({
+        status: 'completed',
+        model_available: true,
+        can_start_training: false,
+        latest_job: {
+          status: 'completed',
+          progress: 100,
+          error_message: null
+        }
+      });
+      console.log('✅ updateAiStatus called successfully');
+    } catch (error) {
+      console.error('❌ Error calling updateAiStatus:', error);
+    }
+  }
+</script>

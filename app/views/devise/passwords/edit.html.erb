@@ -1,0 +1,36 @@
+<div class="d-flex justify-content-center align-items-center min-vh-100 bg-light">
+  <div class="card shadow-sm p-4" style="width: 100%; max-width: 420px;">
+    <h2 class="text-center mb-4">Reset Your Password</h2>
+
+    <%= simple_form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :put, class: "mb-0" }) do |f| %>
+      <%= f.error_notification %>
+      <%= f.input :reset_password_token, as: :hidden %>
+
+      <div class="mb-3">
+        <%= f.input :password,
+                    label: "New Password",
+                    required: true,
+                    autofocus: true,
+                    hint: ("#{@minimum_password_length} characters minimum" if @minimum_password_length),
+                    input_html: { autocomplete: "new-password", class: "form-control" } %>
+      </div>
+
+      <div class="mb-4">
+        <%= f.input :password_confirmation,
+                    label: "Confirm New Password",
+                    required: true,
+                    input_html: { autocomplete: "new-password", class: "form-control" } %>
+      </div>
+
+      <div class="d-grid mb-3">
+        <%= f.button :submit, "Change My Password", class: "btn btn-primary" %>
+      </div>
+    <% end %>
+
+    <hr class="my-3">
+
+    <div class="text-center small">
+      <%= render "devise/shared/links" %>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,19 @@
+# config/sidekiq.yml
+---
+:verbose: false
+:pidfile: ./tmp/pids/sidekiq.pid
+:logfile: ./log/sidekiq.log
+:concurrency: 5
+:timeout: 25
+
+# Queue configuration
+:queues:
+  - [mailers, 3]      # High priority for emails
+  - [default, 2]      # Normal priority
+
+# Production configuration
+:production:
+  :concurrency: 10
+  :queues:
+    - [mailers, 5]
+    - [default, 3]

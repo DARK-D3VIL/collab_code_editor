@@ -1,0 +1,90 @@
+<% content_for :title, "Commit Diff" %>
+
+<div class="container-fluid p-0">
+  <div class="row g-0">
+
+    <!-- Sidebar -->
+    <%= render 'partials/sidebar' %>
+
+    <!-- Main Content -->
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-5 py-4 bg-light min-vh-100">
+      <!-- Mobile Toggle Button -->
+      <div class="d-md-none mb-3">
+        <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
+          <i class="bi bi-list"></i> Toggle Menu
+        </button>
+      </div>
+
+      <h2 class="mb-4">
+        Diff for Commit: <code><%= params[:sha][0..6] %></code>
+      </h2>
+
+      <div class="card shadow-sm">
+        <div class="card-body p-0">
+          <% if @diff.present? %>
+            <% begin %>
+              <pre class="diff-viewer m-0"><%= raw format_diff(safe_encode_diff(@diff)) %></pre>
+            <% rescue Encoding::CompatibilityError, Encoding::UndefinedConversionError => e %>
+              <div class="alert alert-warning m-3">
+                <h5><i class="bi bi-exclamation-triangle"></i> Encoding Issue</h5>
+                <p>This diff contains binary data or incompatible character encodings and cannot be displayed as text.</p>
+                <p><strong>Error:</strong> <%= e.message %></p>
+                <p>The commit may contain binary files or files with mixed encodings.</p>
+              </div>
+            <% end %>
+          <% else %>
+            <div class="alert alert-info m-3">
+              <h5><i class="bi bi-info-circle"></i> No Diff Available</h5>
+              <p>No diff data available for this commit.</p>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Styles -->
+<style>
+  .sidebar {
+    height: 100vh;
+    overflow-y: auto;
+    background-color: #ffffff;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.1);
+  }
+
+  .sidebar .nav-link {
+    color: #333;
+    font-weight: 500;
+    border-left: 4px solid transparent;
+    transition: background-color 0.2s, border-color 0.2s;
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+  }
+
+  .sidebar .nav-link:hover {
+    background-color: #f1f3f5;
+    border-left-color: #0d6efd;
+  }
+
+  .sidebar .nav-link.active {
+    color: #0d6efd;
+    background-color: #e9f3ff;
+    border-left: 4px solid #0d6efd;
+  }
+
+  .diff-viewer {
+    font-family: monospace;
+    background-color: #f8f9fa;
+    padding: 1rem;
+    overflow-x: auto;
+    border-radius: 0.25rem;
+    white-space: pre;
+  }
+
+  .diff-viewer .line { display: block; padding: 0.25rem; }
+  .diff-viewer .line.add    { background-color: #e6ffed; color: #22863a; }
+  .diff-viewer .line.del    { background-color: #ffeef0; color: #b31d28; }
+  .diff-viewer .line.info   { background-color: #f1f8ff; color: #0366d6; font-weight: bold; }
+  .diff-viewer .line.normal { color: #333; }
+</style>

@@ -1,0 +1,61 @@
+<!-- Update your app/views/devise/sessions/new.html.erb -->
+
+<div class="d-flex justify-content-center align-items-center min-vh-100 bg-light">
+  <div class="card shadow-sm p-4" style="width: 100%; max-width: 420px;">
+    <h2 class="text-center mb-4">Welcome Back</h2>
+
+    <%= simple_form_for(resource, as: resource_name, url: session_path(resource_name), html: { class: "mb-0" }) do |f| %>
+      <div class="mb-3">
+        <%= f.input :email,
+                    required: true,
+                    autofocus: true,
+                    input_html: { autocomplete: "email", class: "form-control" } %>
+      </div>
+
+      <div class="mb-3">
+        <%= f.input :password,
+                    required: true,
+                    input_html: { autocomplete: "current-password", class: "form-control" } %>
+      </div>
+
+      <% if devise_mapping.rememberable? %>
+        <div class="form-check mb-3">
+          <%= f.input :remember_me, as: :boolean, inline_label: "Remember me", input_html: { class: "form-check-input" }, label_html: { class: "form-check-label" } %>
+        </div>
+      <% end %>
+
+      <div class="d-grid mb-2">
+        <%= f.button :submit, "Log in", class: "btn btn-primary" %>
+      </div>
+    <% end %>
+
+    <!-- GitHub OAuth Button -->
+    <div class="d-grid mb-3">
+      <%= button_to user_github_omniauth_authorize_path,
+                    method: :post,
+                    form: { class: "m-0" },
+                    class: "btn btn-dark w-100 d-flex justify-content-center align-items-center gap-2" do %>
+        <i class="bi bi-github"></i>
+        Sign in with GitHub
+      <% end %>
+    </div>
+
+    <hr class="my-3">
+
+    <p class="text-center small">
+      Don't have an account?
+      <%= link_to "Sign up", new_registration_path(resource_name), class: "text-decoration-none" %>
+    </p>
+    
+    <!-- Add verification link -->
+    <div class="text-center mb-2">
+      <% if session[:pending_user_id] %>
+        <%= link_to "Didn't receive verification email?", email_verification_path, class: "text-decoration-none small" %>
+      <% end %>
+    </div>
+    
+    <div class="text-center mb-3">
+      <%= link_to "Forgot your password?", new_password_path(resource_name), class: "text-decoration-none small text-muted" %>
+    </div>
+  </div>
+</div>

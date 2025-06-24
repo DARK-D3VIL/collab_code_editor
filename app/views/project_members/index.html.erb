@@ -1,0 +1,130 @@
+<div class="container py-5">
+  <div class="row g-0">
+    <%= render 'partials/sidebar' %>
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="fw-bold mb-1 text-dark">Manage Project Members</h2>
+      <p class="text-muted mb-0">Project: <strong><%= @project.name %></strong></p>
+    </div>
+  </div>
+
+  <div class="row g-4">
+    <!-- Pending Join Requests -->
+    <% if @pending_requests.any? %>
+      <div class="col-12">
+        <div class="card border-0 shadow-sm">
+          <div class="card-header bg-warning bg-opacity-10 border-bottom-0 pb-0">
+            <h5 class="fw-semibold text-warning mb-0">
+              <i class="bi bi-clock-fill me-1 text-warning"></i> Pending Join Requests
+            </h5>
+          </div>
+          <div class="card-body pt-3">
+            <div class="row g-3">
+              <% @pending_requests.each do |request| %>
+                <div class="col-md-6">
+                  <div class="card h-100 border-0 shadow-sm">
+                    <div class="card-body d-flex flex-column justify-content-between">
+                      <div>
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                          <i class="bi bi-person-plus fs-3 text-warning"></i>
+                          <div>
+                            <h6 class="fw-semibold mb-0"><%= request.user.username || request.user.email %></h6>
+                            <small class="text-muted">Requested <%= time_ago_in_words(request.created_at) %> ago</small>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="d-flex justify-content-between mt-auto gap-2">
+                        <%= button_to "Approve", approve_request_project_project_members_path(@project),
+                                      params: { request_id: request.id },
+                                      method: :patch,
+                                      class: "btn btn-sm btn-outline-success flex-grow-1" %>
+                        <%= button_to "Reject", reject_request_project_project_members_path(@project),
+                                      params: { request_id: request.id },
+                                      method: :patch,
+                                      data: { confirm: "Are you sure you want to reject this request?" },
+                                      class: "btn btn-sm btn-outline-danger flex-grow-1" %>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              <% end %>
+            </div>
+          </div>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Active Members -->
+    <% if @active_memberships.any? %>
+      <div class="col-12">
+        <h5 class="fw-bold text-success"><i class="bi bi-person-check-fill me-1"></i> Active Members</h5>
+        <div class="row g-4">
+          <% @active_memberships.each do |membership| %>
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column justify-content-between">
+                  <div class="d-flex align-items-center gap-3 mb-3">
+                    <i class="bi bi-person-circle fs-3 text-primary"></i>
+                    <div>
+                      <h6 class="fw-semibold mb-0"><%= membership.user.username || membership.user.email %></h6>
+                      <span class="badge bg-<%= membership.reader? ? 'info' : 'primary' %>"><%= membership.role.humanize %></span>
+                    </div>
+                  </div>
+                  <div class="d-flex flex-column gap-2 mt-auto">
+                    <% if membership.reader? %>
+                      <%= button_to "Make Writer", change_role_project_project_member_path(@project, membership.user),
+                                    params: { role: 'writer' },
+                                    method: :patch,
+                                    class: "btn btn-outline-primary btn-sm" %>
+                    <% else %>
+                      <%= button_to "Make Reader", change_role_project_project_member_path(@project, membership.user),
+                                    params: { role: 'reader' },
+                                    method: :patch,
+                                    class: "btn btn-outline-info btn-sm" %>
+                    <% end %>
+                    <%= button_to "Block User", deactivate_project_project_member_path(@project, membership.user),
+                                  method: :patch,
+                                  data: { confirm: "Are you sure you want to remove this member?" },
+                                  class: "btn btn-outline-danger btn-sm" %>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <!-- Blocked Members -->
+    <% if @inactive_memberships.any? %>
+      <div class="col-12">
+        <h5 class="fw-bold text-danger"><i class="bi bi-person-dash-fill me-1"></i> Blocked Members</h5>
+        <div class="row g-4">
+          <% @inactive_memberships.each do |membership| %>
+            <div class="col-md-4">
+              <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column justify-content-between">
+                  <div class="d-flex align-items-center gap-3 mb-3">
+                    <i class="bi bi-person-x-fill fs-3 text-secondary"></i>
+                    <div>
+                      <h6 class="fw-semibold mb-0"><%= membership.user.username || membership.user.email %></h6>
+                      <small class="text-muted">Role: <%= membership.role.humanize %></small>
+                    </div>
+                  </div>
+                  <%= button_to "Unblock User", activate_project_project_member_path(@project, membership.user),
+                                method: :patch,
+                                class: "btn btn-outline-success btn-sm mt-auto" %>
+                </div>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+    </main>
+  </div>
+</div>

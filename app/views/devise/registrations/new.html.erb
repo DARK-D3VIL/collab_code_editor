@@ -1,0 +1,56 @@
+<div class="d-flex justify-content-center align-items-center min-vh-100 bg-light">
+  <div class="card shadow-sm p-4" style="width: 100%; max-width: 420px;">
+    <h2 class="text-center mb-4">Create Your Account</h2>
+
+    <%= simple_form_for(resource, as: resource_name, url: registration_path(resource_name), html: { class: "mb-0" }) do |f| %>
+      <%= f.error_notification %>
+
+      <div class="mb-3">
+        <%= f.input :username,
+                    required: true,
+                    autofocus: true,
+                    input_html: { class: "form-control" } %>
+      </div>
+
+      <div class="mb-3">
+        <%= f.input :email,
+                    required: true,
+                    input_html: { autocomplete: "email", class: "form-control" } %>
+      </div>
+
+      <div class="mb-3">
+        <%= f.input :password,
+                    required: true,
+                    hint: ("#{@minimum_password_length} characters minimum" if @minimum_password_length),
+                    input_html: { autocomplete: "new-password", class: "form-control" } %>
+      </div>
+
+      <div class="mb-4">
+        <%= f.input :password_confirmation,
+                    required: true,
+                    input_html: { autocomplete: "new-password", class: "form-control" } %>
+      </div>
+
+      <div class="d-grid mb-3">
+        <%= f.button :submit, "Sign up", class: "btn btn-primary" %>
+      </div>
+    <% end %>
+
+    <!-- GitHub OAuth Sign Up Button -->
+    <div class="d-grid mb-3">
+      <%= button_to user_github_omniauth_authorize_path,
+                    method: :post,
+                    form: { class: "m-0" },
+                    class: "btn btn-dark w-100 d-flex justify-content-center align-items-center gap-2" do %>
+        <i class="bi bi-github"></i>
+        Sign up with GitHub
+      <% end %>
+    </div>
+
+    <hr class="my-3">
+    <p class="text-center small">
+      Already have an account?
+      <%= link_to "Log in", new_session_path(resource_name), class: "text-decoration-none" %>
+    </p>
+  </div>
+</div>

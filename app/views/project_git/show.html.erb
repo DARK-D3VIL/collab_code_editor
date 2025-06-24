@@ -1,0 +1,621 @@
+<% content_for :title, "Git Commit Graph" %>
+
+<div class="container-fluid p-0">
+  <div class="row g-0">
+    <!-- Sidebar -->
+    <%= render 'partials/sidebar' %>
+
+    <!-- Main Content - ADD THE SCOPING CLASS HERE -->
+    <main class="col-md-9 ms-sm-auto col-lg-10 px-md-5 py-4 bg-light min-vh-100 git-commit-graph-page">
+      <!-- Mobile Toggle Button -->
+      <div class="d-md-none mb-3">
+        <button class="btn btn-outline-primary w-100" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu">
+          <i class="bi bi-list"></i> Toggle Menu
+        </button>
+      </div>
+
+      <!-- Statistics Grid -->
+      <div class="git-graph-stats mb-4">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <div class="stat-card">
+              <div class="stat-number"><%= @graph_commits.size %></div>
+              <div class="stat-label">Total Commits</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card">
+              <div class="stat-number"><%= @branches.size %></div>
+              <div class="stat-label">Branches</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card">
+              <div class="stat-number"><%= @graph_commits.map { |c| c[:author] }.uniq.size %></div>
+              <div class="stat-label">Contributors</div>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="stat-card">
+              <div class="stat-number">
+                <% if @graph_commits.any? %>
+                  <span class="latest-time" data-time="<%= @graph_commits.last[:time] %>"></span>
+                <% else %>
+                  Never
+                <% end %>
+              </div>
+              <div class="stat-label">Latest Commit</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="mb-4">
+        <i class="bi bi-diagram-3 me-2"></i>
+        Git Commit Graph
+      </h2>
+
+      <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-0">
+              <i class="bi bi-clock-history me-2"></i>
+              Commit History Visualization
+            </h5>
+            <small class="opacity-75">Interactive timeline of repository changes (latest commits first)</small>
+          </div>
+          <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-light" id="toggleOrientation">
+              <i class="bi bi-arrow-up-down me-1"></i>
+              Flip View
+            </button>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div id="loading" class="loading-state">
+            <div class="text-center py-5">
+              <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+              </div>
+              <p class="mt-3 text-muted">Loading commit graph...</p>
+            </div>
+          </div>
+          <div id="gitGraph" class="git-graph-container" style="display: none;"></div>
+          <div id="empty-state" class="text-center py-5 text-muted" style="display: none;">
+            <i class="bi bi-git" style="font-size: 3rem; opacity: 0.5;"></i>
+            <h4 class="mt-3">No Commits Found</h4>
+            <p>This repository doesn't have any commits yet.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<!-- Commit Details Modal - REMOVED DUPLICATE -->
+<div class="modal fade" id="commitModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title">
+          <i class="bi bi-info-circle me-2"></i>
+          Commit Details
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="commit-details-content">
+        <!-- Content will be populated by JavaScript -->
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CSS Styles - HEAVILY SCOPED TO PREVENT SIDEBAR INTERFERENCE -->
+<style>
+  /* CRITICAL: Scope ALL styles to prevent sidebar interference */
+  
+  /* Only target elements INSIDE the git-commit-graph-page */
+  .git-commit-graph-page .git-graph-stats .stat-card {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    text-align: center;
+    border: 1px solid #e9ecef;
+    transition: transform 0.2s ease-in-out;
+  }
+
+  .git-commit-graph-page .git-graph-stats .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+  }
+
+  .git-commit-graph-page .git-graph-stats .stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #0d6efd;
+    margin-bottom: 0.5rem;
+  }
+
+  .git-commit-graph-page .git-graph-stats .stat-label {
+    color: #6c757d;
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Git Graph Container - Heavily Scoped */
+  .git-commit-graph-page .git-graph-container {
+    min-height: 600px;
+    padding: 2rem;
+    background: #ffffff;
+    overflow-x: auto;
+    box-sizing: border-box;
+  }
+
+  .git-commit-graph-page .loading-state {
+    background: #ffffff;
+  }
+
+  .git-commit-graph-page .commit-info-box {
+    background: #f8f9fa;
+    border-left: 4px solid #0d6efd;
+    padding: 0.75rem;
+    margin-top: 0.5rem;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.875rem;
+  }
+
+  .git-commit-graph-page .commit-author {
+    font-weight: 600;
+    color: #0d6efd;
+  }
+
+  .git-commit-graph-page .commit-time {
+    color: #6c757d;
+    margin-top: 0.25rem;
+  }
+
+  .git-commit-graph-page .commit-sha {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    background: #e9ecef;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.875rem;
+  }
+
+  /* Enhanced GitGraph styling - ONLY inside git-graph-container */
+  .git-commit-graph-page .git-graph-container .gitgraph-commit-message {
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    color: #212529 !important;
+    max-width: 300px !important;
+  }
+
+  .git-commit-graph-page .git-graph-container .gitgraph-commit-author {
+    font-size: 12px !important;
+    color: #6c757d !important;
+    font-weight: 400 !important;
+  }
+
+  .git-commit-graph-page .git-graph-container .gitgraph-commit-hash {
+    font-size: 11px !important;
+    color: #868e96 !important;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace !important;
+  }
+
+  .git-commit-graph-page .git-graph-container .gitgraph-branch-label {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    padding: 4px 8px !important;
+    border-radius: 4px !important;
+  }
+
+  /* Custom commit dot styling - ONLY inside git-graph-container */
+  .git-commit-graph-page .git-graph-container .gitgraph-commit-dot {
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .git-commit-graph-page .git-graph-container .gitgraph-commit-dot:hover {
+    transform: scale(1.2);
+  }
+
+  /* Branch colors enhancement - ONLY in git-commit-graph-page */
+  .git-commit-graph-page .branch-main { color: #0d6efd; }
+  .git-commit-graph-page .branch-develop { color: #198754; }
+  .git-commit-graph-page .branch-feature { color: #fd7e14; }
+  .git-commit-graph-page .branch-hotfix { color: #dc3545; }
+  .git-commit-graph-page .branch-release { color: #6f42c1; }
+
+  /* Responsive adjustments - ONLY in git-commit-graph-page */
+  @media (max-width: 768px) {
+    .git-commit-graph-page .git-graph-container {
+      padding: 1rem;
+      min-height: 400px;
+    }
+    
+    .git-commit-graph-page .git-graph-container .gitgraph-commit-message {
+      max-width: 200px !important;
+      font-size: 12px !important;
+    }
+  }
+
+  /* CRITICAL: Make sure NO styles leak outside */
+  .git-commit-graph-page .stat-card,
+  .git-commit-graph-page .commit-info-box,
+  .git-commit-graph-page .git-graph-container,
+  .git-commit-graph-page .git-graph-container > * {
+    box-sizing: border-box;
+  }
+
+  /* EXPLICITLY prevent any interference with sidebar */
+  #sidebarMenu,
+  #sidebarMenu *,
+  .sidebar,
+  .sidebar * {
+    /* Ensure sidebar styles are not affected */
+  }
+</style>
+
+<!-- GitGraphJS Script -->
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const commits = <%= raw @graph_commits.to_json %>;
+    const graphContainer = document.getElementById("gitGraph");
+    const loadingElement = document.getElementById("loading");
+    const emptyStateElement = document.getElementById("empty-state");
+    
+    let currentOrientation = 'vertical';
+    let gitgraphInstance = null;
+
+    // Debug: Log commit data structure
+    console.log('Commits data:', commits);
+    if (commits.length > 0) {
+      console.log('Sample commit:', commits[0]);
+      console.log('Commit keys:', Object.keys(commits[0]));
+    }
+
+    // Update time display
+    updateTimeDisplay();
+
+    // Check if we have commits
+    if (commits.length === 0) {
+      showEmptyState();
+      return;
+    }
+
+    // Check if GitgraphJS is available
+    if (typeof GitgraphJS === 'undefined') {
+      console.error('GitgraphJS is not loaded');
+      showError('GitGraph library not loaded. Please refresh the page.');
+      return;
+    }
+
+    // Initialize the graph
+    initializeGitGraph();
+
+    // Toggle orientation button
+    document.getElementById('toggleOrientation').addEventListener('click', function() {
+      currentOrientation = currentOrientation === 'vertical' ? 'horizontal' : 'vertical';
+      initializeGitGraph();
+    });
+
+    function initializeGitGraph() {
+      try {
+        // Clear previous graph
+        graphContainer.innerHTML = '';
+
+        // Initialize GitGraph with enhanced template
+        gitgraphInstance = GitgraphJS.createGitgraph(graphContainer, {
+          orientation: currentOrientation === 'vertical' ? 'vertical' : 'horizontal',
+          reverseArrow: true, // Show arrows pointing to parents
+          template: GitgraphJS.templateExtend(GitgraphJS.TemplateName.Metro, {
+            colors: ['#0d6efd', '#198754', '#fd7e14', '#dc3545', '#6f42c1', '#20c997', '#6610f2', '#d63384'],
+            branch: {
+              lineWidth: 3,
+              spacing: currentOrientation === 'vertical' ? 80 : 120,
+              label: {
+                display: true,
+                bgColor: 'white',
+                borderRadius: 6,
+                font: 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui',
+                color: '#212529'
+              }
+            },
+            commit: {
+              spacing: currentOrientation === 'vertical' ? 100 : 80,
+              dot: {
+                size: 10,
+                strokeWidth: 3,
+                strokeColor: 'white'
+              },
+              message: {
+                display: true,
+                displayAuthor: true,
+                displayHash: true,
+                font: 'normal 14px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui',
+                color: '#212529'
+              }
+            },
+            arrow: {
+              size: 8,
+              color: '#6c757d'
+            }
+          })
+        });
+
+        // Sort commits by time (newest first for display, but we'll reverse for building)
+        const sortedCommits = [...commits].sort((a, b) => new Date(b.time) - new Date(a.time));
+        
+        // For building the graph, we need oldest first
+        const buildingCommits = [...commits].sort((a, b) => new Date(a.time) - new Date(b.time));
+        
+        const branches = {};
+        const processedCommits = new Set();
+
+        // Build graph with commits in chronological order (oldest first)
+        buildingCommits.forEach(commit => {
+          if (processedCommits.has(commit.sha)) return;
+          
+          const branchName = commit.branch;
+
+          // Create branch if it doesn't exist
+          if (!branches[branchName]) {
+            if (commit.parents.length === 0) {
+              // Root commit
+              branches[branchName] = gitgraphInstance.branch(branchName);
+            } else {
+              // Find parent branch
+              const parentCommit = commits.find(c => c.sha === commit.parents[0]);
+              const parentBranch = parentCommit ? parentCommit.branch : 'main';
+              
+              if (branches[parentBranch] && parentBranch !== branchName) {
+                branches[branchName] = branches[parentBranch].branch(branchName);
+              } else if (!branches[branchName]) {
+                branches[branchName] = gitgraphInstance.branch(branchName);
+              }
+            }
+          }
+
+          // Create enhanced commit display
+          const commitTime = new Date(commit.time);
+          const timeAgo = getTimeAgo(commitTime);
+          const formattedDate = commitTime.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric', 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          });
+
+          // Enhanced commit message with better formatting
+          const commitSubject = (commit.short_message || commit.message || 'No message').trim();
+          const displayMessage = commitSubject.length > 50 ? 
+            commitSubject.substring(0, 47) + '...' : commitSubject;
+
+          const commitData = {
+            subject: displayMessage,
+            author: `${commit.author} • ${formattedDate}`,
+            hash: commit.sha.substring(0, 8),
+            style: {
+              message: {
+                color: '#212529',
+                font: 'normal 14px -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui'
+              },
+              dot: {
+                color: getBranchColor(branchName)
+              }
+            },
+            onClick: () => showCommitDetails(commit)
+          };
+
+          branches[branchName].commit(commitData);
+          processedCommits.add(commit.sha);
+        });
+
+        hideLoading();
+      } catch (error) {
+        console.error('Error creating git graph:', error);
+        showError('Failed to create git graph: ' + error.message);
+      }
+    }
+
+    function getBranchColor(branchName) {
+      const colors = {
+        'main': '#0d6efd',
+        'master': '#0d6efd',
+        'develop': '#198754',
+        'dev': '#198754'
+      };
+      
+      if (colors[branchName]) return colors[branchName];
+      if (branchName.includes('feature')) return '#fd7e14';
+      if (branchName.includes('hotfix')) return '#dc3545';
+      if (branchName.includes('release')) return '#6f42c1';
+      
+      // Default color rotation
+      const defaultColors = ['#20c997', '#6610f2', '#d63384', '#f77234'];
+      const hash = branchName.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+      return defaultColors[hash % defaultColors.length];
+    }
+  });
+
+  function showCommitDetails(commit) {
+    const modal = new bootstrap.Modal(document.getElementById('commitModal'));
+    const content = document.getElementById('commit-details-content');
+    
+    const timeAgo = getTimeAgo(new Date(commit.time));
+    const commitDate = new Date(commit.time).toLocaleString();
+    
+    content.innerHTML = `
+      <div class="row">
+        <div class="col-md-8">
+          <h6 class="fw-bold text-primary">
+            <i class="bi bi-chat-square-text me-2"></i>
+            Commit Message
+          </h6>
+          <div class="bg-light border rounded p-3 mb-3">
+            <pre class="mb-0" style="white-space: pre-wrap; font-family: inherit; font-size: 14px;">${commit.full_message || commit.message}</pre>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <h6 class="fw-bold text-primary">
+            <i class="bi bi-info-circle me-2"></i>
+            Commit Details
+          </h6>
+          <div class="list-group list-group-flush border rounded">
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-hash me-1"></i> SHA:</strong>
+              <span class="commit-sha">${commit.sha.substring(0, 12)}</span>
+            </div>
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-person me-1"></i> Author:</strong>
+              <span class="text-primary fw-semibold">${commit.author}</span>
+            </div>
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-envelope me-1"></i> Email:</strong>
+              <span class="text-muted small">${commit.author_email}</span>
+            </div>
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-clock me-1"></i> Time:</strong>
+              <div class="text-end">
+                <div class="fw-semibold">${timeAgo}</div>
+                <small class="text-muted">${commitDate}</small>
+              </div>
+            </div>
+            <div class="list-group-item d-flex justify-content-between align-items-center">
+              <strong><i class="bi bi-git me-1"></i> Branch:</strong>
+              <span class="badge bg-primary fs-6">${commit.branch}</span>
+            </div>
+          </div>
+          
+          ${commit.parents && commit.parents.length > 0 ? `
+          <h6 class="fw-bold mt-3 text-primary">
+            <i class="bi bi-diagram-2 me-2"></i>
+            Parent Commits
+          </h6>
+          <div class="d-flex flex-wrap gap-2">
+            ${commit.parents.map(parent => `
+              <span class="commit-sha">${parent.substring(0, 8)}</span>
+            `).join('')}
+          </div>
+          ` : ''}
+          
+          <div class="d-grid gap-2 mt-4">
+            <button class="btn btn-outline-primary btn-sm" onclick="copyToClipboard('${commit.sha}')">
+              <i class="bi bi-clipboard me-1"></i> Copy Full SHA
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="copyToClipboard(\`${(commit.full_message || commit.message).replace(/`/g, '\\`')}\`)">
+              <i class="bi bi-clipboard me-1"></i> Copy Message
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+    
+    modal.show();
+  }
+
+  function copyToClipboard(text) {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('Copied to clipboard!', 'success');
+      }).catch(() => {
+        fallbackCopy(text);
+      });
+    } else {
+      fallbackCopy(text);
+    }
+  }
+
+  function fallbackCopy(text) {
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    document.body.appendChild(textArea);
+    textArea.select();
+    try {
+      document.execCommand('copy');
+      showToast('Copied to clipboard!', 'success');
+    } catch (err) {
+      console.error('Copy failed:', err);
+      showToast('Copy failed', 'danger');
+    }
+    document.body.removeChild(textArea);
+  }
+
+  function showToast(message, type = 'success') {
+    const toastId = 'toast-' + Date.now();
+    const toast = document.createElement('div');
+    toast.id = toastId;
+    toast.className = `position-fixed top-0 end-0 m-3 alert alert-${type} alert-dismissible fade show`;
+    toast.style.zIndex = '9999';
+    toast.innerHTML = `
+      <i class="bi bi-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>
+      ${message}
+      <button type="button" class="btn-close" onclick="document.getElementById('${toastId}').remove()"></button>
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+      const element = document.getElementById(toastId);
+      if (element) element.remove();
+    }, 4000);
+  }
+
+  function hideLoading() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('gitGraph').style.display = 'block';
+  }
+
+  function showEmptyState() {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('empty-state').style.display = 'block';
+  }
+
+  function showError(message) {
+    document.getElementById('loading').innerHTML = `
+      <div class="text-center py-5 text-danger">
+        <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i>
+        <h4 class="mt-3">Error</h4>
+        <p>${message}</p>
+        <button class="btn btn-outline-primary" onclick="location.reload()">
+          <i class="bi bi-arrow-clockwise me-1"></i> Retry
+        </button>
+      </div>
+    `;
+  }
+
+  function getTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+    const diffWeeks = Math.floor(diffDays / 7);
+    const diffMonths = Math.floor(diffDays / 30);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins} min${diffMins > 1 ? 's' : ''} ago`;
+    if (diffHours < 24) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    if (diffDays < 7) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffWeeks < 4) return `${diffWeeks} week${diffWeeks > 1 ? 's' : ''} ago`;
+    if (diffMonths < 12) return `${diffMonths} month${diffMonths > 1 ? 's' : ''} ago`;
+    return date.toLocaleDateString();
+  }
+
+  function updateTimeDisplay() {
+    const timeElement = document.querySelector('.latest-time');
+    if (timeElement) {
+      const time = timeElement.getAttribute('data-time');
+      if (time) {
+        timeElement.textContent = getTimeAgo(new Date(time));
+        // Update every minute
+        setInterval(() => {
+          timeElement.textContent = getTimeAgo(new Date(time));
+        }, 60000);
+      }
+    }
+  }
+</script>

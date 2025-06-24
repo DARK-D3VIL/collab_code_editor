@@ -1,0 +1,27 @@
+<div class="d-flex justify-content-center align-items-center min-vh-100 bg-light">
+  <div class="card shadow-sm p-4" style="width: 100%; max-width: 420px;">
+    <h2 class="text-center mb-4">Forgot your password?</h2>
+    <p class="text-center text-muted mb-4">Enter your email and we’ll send you instructions to reset your password.</p>
+
+    <%= simple_form_for(resource, as: resource_name, url: password_path(resource_name), html: { method: :post, class: "mb-0" }) do |f| %>
+      <%= f.error_notification %>
+
+      <div class="mb-3">
+        <%= f.input :email,
+                    required: true,
+                    autofocus: true,
+                    input_html: { autocomplete: "email", class: "form-control" } %>
+      </div>
+
+      <div class="d-grid mb-3">
+        <%= f.button :submit, "Send Reset Instructions", class: "btn btn-primary" %>
+      </div>
+    <% end %>
+
+    <hr class="my-3">
+
+    <div class="text-center small">
+      <%= render "devise/shared/links" %>
+    </div>
+  </div>
+</div>

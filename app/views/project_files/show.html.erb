@@ -1,0 +1,711 @@
+<div class="editor-container">
+  <!-- Header -->
+  <header class="file-header">
+    <div class="header-content">
+      <div class="file-info">
+        <div class="file-icon">
+          <i class="fas fa-file-code"></i>
+        </div>
+        <div class="file-details">
+          <h1 class="file-name"><%= @file_name %></h1>
+          <div class="file-meta">
+            <span class="language-badge">
+              <i class="<%= get_language_icon(@language) %>"></i>
+              <%= @language.capitalize %>
+            </span>
+            <span class="branch-badge">
+              <i class="fas fa-code-branch"></i>
+              <%= @branch_name %>
+            </span>
+            <span class="access-badge">
+              <i class="fas fa-eye"></i>
+              Read Only
+            </span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <button id="searchBtn" class="action-btn" title="Search in file (Ctrl+F)">
+          <i class="fas fa-search"></i>
+          <span>Search</span>
+        </button>
+        <button id="copyBtn" class="action-btn" title="Copy file content">
+          <i class="fas fa-copy"></i>
+          <span>Copy</span>
+        </button>
+        <button id="downloadBtn" class="action-btn" title="Download file">
+          <i class="fas fa-download"></i>
+          <span>Download</span>
+        </button>
+        <div class="divider"></div>
+        <button id="exitBtn" class="action-btn exit-btn" title="Back to file browser">
+          <i class="fas fa-arrow-left"></i>
+          <span>Back</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Status Bar -->
+  <div class="status-bar" id="statusBar">
+    <div class="status-left">
+      <span class="status-item">
+        <i class="fas fa-info-circle"></i>
+        Ready
+      </span>
+    </div>
+    <div class="status-right">
+      <span class="status-item" id="lineInfo">Line 1, Column 1</span>
+      <span class="status-item" id="selectionInfo">No selection</span>
+      <span class="status-item" id="fileSize">0 bytes</span>
+    </div>
+  </div>
+
+  <!-- Notifications Area -->
+  <div id="notifications" class="notifications-container"></div>
+
+  <!-- Editor -->
+  <div class="editor-wrapper">
+    <div id="editor"></div>
+    
+    <!-- Editor Overlay for Read-Only State -->
+    <div class="editor-overlay">
+      <div class="read-only-indicator">
+        <i class="fas fa-lock"></i>
+        <span>Read-Only Mode</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="loadingState" class="loading-state">
+    <div class="loading-content">
+      <div class="spinner"></div>
+      <p>Loading file...</p>
+    </div>
+  </div>
+</div>
+
+<%= javascript_importmap_tags %>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+<script type="module">
+  const projectId = <%= @project.id %>;
+  const fileName = "<%= @file_name %>";
+  const initialContent = <%= @file_content.to_json.html_safe %>;
+  const language = "<%= @language %>";
+  const branchName = "<%= @branch_name %>";
+  const currentPath = "<%= @file_path %>";
+
+  const redirectUrl = `/projects/${projectId}/files?path=${encodeURIComponent(currentPath)}`;
+
+  let editor;
+  let isLoading = true;
+
+  // Language icon mapping
+  const languageIcons = {
+    javascript: 'fab fa-js-square',
+    typescript: 'fab fa-js-square',
+    python: 'fab fa-python',
+    java: 'fab fa-java',
+    html: 'fab fa-html5',
+    css: 'fab fa-css3-alt',
+    scss: 'fab fa-sass',
+    json: 'fas fa-brackets-curly',
+    xml: 'fas fa-code',
+    markdown: 'fab fa-markdown',
+    sql: 'fas fa-database',
+    php: 'fab fa-php',
+    ruby: 'fas fa-gem',
+    go: 'fab fa-golang',
+    rust: 'fab fa-rust',
+    cpp: 'fas fa-code',
+    c: 'fas fa-code',
+    erb: 'fas fa-code',
+    default: 'fas fa-file-code'
+  };
+
+  // Utility functions
+  function showNotification(message, type = 'info', duration = 5000) {
+    const notificationsContainer = document.getElementById('notifications');
+    const alertClass = {
+      error: 'alert-danger',
+      success: 'alert-success', 
+      warning: 'alert-warning',
+      info: 'alert-info'
+    }[type] || 'alert-info';
+    
+    const iconClass = {
+      error: 'fas fa-exclamation-circle',
+      success: 'fas fa-check-circle',
+      warning: 'fas fa-exclamation-triangle',
+      info: 'fas fa-info-circle'
+    }[type] || 'fas fa-info-circle';
+    
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show`;
+    notification.innerHTML = `
+      <i class="${iconClass}"></i>
+      <span>${message}</span>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    notificationsContainer.appendChild(notification);
+    
+    if (duration > 0) {
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.remove();
+        }
+      }, duration);
+    }
+  }
+
+  function updateStatusBar() {
+    if (!editor) return;
+    
+    const position = editor.getPosition();
+    const selection = editor.getSelection();
+    const model = editor.getModel();
+    
+    document.getElementById('lineInfo').textContent = 
+      `Line ${position.lineNumber}, Column ${position.column}`;
+    
+    if (selection && !selection.isEmpty()) {
+      const selectedText = model.getValueInRange(selection);
+      const lines = selectedText.split('\n').length;
+      const chars = selectedText.length;
+      document.getElementById('selectionInfo').textContent = 
+        `${chars} chars, ${lines} lines selected`;
+    } else {
+      document.getElementById('selectionInfo').textContent = 'No selection';
+    }
+    
+    const content = model.getValue();
+    const bytes = new Blob([content]).size;
+    document.getElementById('fileSize').textContent = formatBytes(bytes);
+  }
+
+  function formatBytes(bytes) {
+    if (bytes === 0) return '0 bytes';
+    const k = 1024;
+    const sizes = ['bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
+  function getLanguageIcon(lang) {
+    return languageIcons[lang.toLowerCase()] || languageIcons.default;
+  }
+
+  // Show loading initially
+  document.getElementById('loadingState').style.display = 'flex';
+
+  function hideLoading() {
+    isLoading = false;
+    document.getElementById('loadingState').style.display = 'none';
+  }
+
+  // Handle any JavaScript errors gracefully
+  window.addEventListener('error', function(e) {
+    console.error('JavaScript Error:', e.error);
+    hideLoading();
+    showNotification('Error loading file: ' + e.message, 'error');
+  });
+
+  // Initialize Monaco Editor
+  require.config({ 
+    paths: { vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs" } 
+  });
+
+  require(["vs/editor/editor.main"], function () {
+    editor = monaco.editor.create(document.getElementById("editor"), {
+      value: initialContent,
+      language: language,
+      automaticLayout: true,
+      theme: "vs",
+      fontSize: 14,
+      fontFamily: "'JetBrains Mono', 'Consolas', 'Monaco', monospace",
+      lineHeight: 1.6,
+      minimap: { enabled: true },
+      wordWrap: "on",
+      padding: { top: 16, bottom: 16 },
+      readOnly: true,
+      contextmenu: true,
+      selectOnLineNumbers: true,
+      scrollBeyondLastLine: false,
+      renderLineHighlight: "line",
+      cursorBlinking: "solid",
+      showFoldingControls: "always",
+      folding: true,
+      foldingStrategy: "auto",
+      lineNumbers: "on",
+      glyphMargin: true,
+      lineDecorationsWidth: 10,
+      lineNumbersMinChars: 4,
+      renderWhitespace: "selection",
+      renderControlCharacters: false,
+      renderIndentGuides: true,
+      rulers: [80, 120],
+      bracketPairColorization: { enabled: true },
+      guides: {
+        bracketPairs: true,
+        indentation: true
+      },
+      scrollbar: {
+        vertical: 'visible',
+        horizontal: 'visible',
+        useShadows: false,
+        verticalHasArrows: false,
+        horizontalHasArrows: false,
+        verticalScrollbarSize: 14,
+        horizontalScrollbarSize: 14
+      }
+    });
+
+    // Event listeners
+    editor.onDidChangeCursorPosition(updateStatusBar);
+    editor.onDidChangeCursorSelection(updateStatusBar);
+
+    // Keyboard shortcuts
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, function() {
+      editor.getAction('actions.find').run();
+      showNotification('Search opened. Press Escape to close.', 'info', 3000);
+    });
+
+    editor.addCommand(monaco.KeyCode.F3, function() {
+      editor.getAction('editor.action.nextMatchFindAction').run();
+    });
+
+    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F3, function() {
+      editor.getAction('editor.action.previousMatchFindAction').run();
+    });
+
+    // Initialize
+    updateStatusBar();
+    hideLoading();
+    
+    showNotification('File loaded successfully in read-only mode', 'success', 4000);
+    editor.focus();
+  });
+
+  // Event handlers
+  document.getElementById("exitBtn").addEventListener("click", () => {
+    window.location.href = redirectUrl;
+  });
+
+  document.getElementById("searchBtn").addEventListener("click", () => {
+    if (editor) {
+      editor.getAction('actions.find').run();
+      showNotification('Search opened. Use Ctrl+F as shortcut.', 'info', 3000);
+    }
+  });
+
+  document.getElementById("copyBtn").addEventListener("click", async () => {
+    if (editor) {
+      const content = editor.getValue();
+      try {
+        await navigator.clipboard.writeText(content);
+        showNotification('File content copied to clipboard', 'success', 3000);
+      } catch (err) {
+        showNotification('Failed to copy content', 'error', 3000);
+      }
+    }
+  });
+
+  document.getElementById("downloadBtn").addEventListener("click", () => {
+    if (editor) {
+      const content = editor.getValue();
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showNotification('File download started', 'success', 3000);
+    }
+  });
+
+  // Global keyboard shortcuts
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !document.querySelector('.find-widget')) {
+      window.location.href = redirectUrl;
+    }
+  });
+
+  // Handle window resize
+  window.addEventListener('resize', () => {
+    if (editor) {
+      editor.layout();
+    }
+  });
+</script>
+
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background-color: #f8fafc;
+    color: #1e293b;
+    overflow: hidden;
+  }
+
+  .editor-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #ffffff;
+  }
+
+  /* Header Styles */
+  .file-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 0;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    position: relative;
+    z-index: 100;
+  }
+
+  .file-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+  }
+
+  .header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .file-info {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .file-icon {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+  }
+
+  .file-details h1.file-name {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+  }
+
+  .file-meta {
+    display: flex;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  .language-badge,
+  .branch-badge,
+  .access-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+  }
+
+  .access-badge {
+    background: rgba(59, 130, 246, 0.3);
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    color: white;
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+  }
+
+  .action-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+    color: white;
+  }
+
+  .action-btn:active {
+    transform: translateY(0);
+  }
+
+  .exit-btn {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  .exit-btn:hover {
+    background: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.4);
+  }
+
+  .divider {
+    width: 1px;
+    height: 24px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 0 0.5rem;
+  }
+
+  /* Status Bar */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 1.5rem;
+    background: #f1f5f9;
+    border-bottom: 1px solid #e2e8f0;
+    font-size: 0.75rem;
+    color: #64748b;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .status-left,
+  .status-right {
+    display: flex;
+    gap: 1rem;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  /* Notifications */
+  .notifications-container {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 0 1.5rem;
+    background: #f8fafc;
+  }
+
+  .notifications-container:empty {
+    display: none;
+  }
+
+  .alert {
+    margin: 0.5rem 0;
+    border: none;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .alert i {
+    flex-shrink: 0;
+  }
+
+  /* Editor Wrapper */
+  .editor-wrapper {
+    flex: 1;
+    position: relative;
+    background: #ffffff;
+  }
+
+  #editor {
+    height: 100%;
+    width: 100%;
+  }
+
+  .editor-overlay {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .read-only-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    background: rgba(59, 130, 246, 0.9);
+    color: white;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+  }
+
+  /* Loading State */
+  .loading-state {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+  }
+
+  .loading-content {
+    text-align: center;
+    color: #64748b;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e2e8f0;
+    border-top: 3px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 1rem;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  /* Monaco Editor Customizations */
+  .monaco-editor .monaco-editor-background {
+    background-color: #ffffff !important;
+  }
+
+  .monaco-editor .margin {
+    background-color: #f8fafc !important;
+  }
+
+  .monaco-editor .current-line {
+    background-color: rgba(59, 130, 246, 0.05) !important;
+    border: none !important;
+  }
+
+  .monaco-editor .line-numbers {
+    color: #94a3b8 !important;
+  }
+
+  .monaco-editor .monaco-scrollable-element > .scrollbar > .slider {
+    background: rgba(148, 163, 184, 0.4) !important;
+    border-radius: 3px !important;
+  }
+
+  .monaco-editor .monaco-scrollable-element > .scrollbar > .slider:hover {
+    background: rgba(148, 163, 184, 0.6) !important;
+  }
+
+  .monaco-editor .selected-text {
+    background-color: rgba(59, 130, 246, 0.2) !important;
+  }
+
+  .monaco-editor .find-widget {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15) !important;
+    border-radius: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+  }
+
+  .monaco-editor .ruler {
+    border-left: 1px solid rgba(148, 163, 184, 0.2) !important;
+  }
+
+  /* Responsive Design */
+  @media (max-width: 768px) {
+    .header-content {
+      flex-direction: column;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .file-info {
+      width: 100%;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .header-actions {
+      width: 100%;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .action-btn span {
+      display: none;
+    }
+
+    .status-bar {
+      flex-direction: column;
+      gap: 0.5rem;
+      text-align: center;
+    }
+
+    .file-details h1.file-name {
+      font-size: 1.25rem;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .file-meta {
+      flex-direction: column;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .language-badge,
+    .branch-badge,
+    .access-badge {
+      font-size: 0.75rem;
+      padding: 0.125rem 0.5rem;
+    }
+  }
+</style>
