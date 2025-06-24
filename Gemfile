@@ -78,5 +78,5 @@ gem "omniauth-rails_csrf_protection"
 
 # Background job processing - Compatible with Ruby 3.1.4
 gem "sidekiq", "~> 7.3" # Use version 7.x which supports Ruby 3.1+
-gem "sidekiq-cron", "~> 1.12"
+gem "sidekiq-cron", "~> 2.3"
 gem 'recaptcha'
