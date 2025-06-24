@@ -79,6 +79,7 @@ Rails.application.configure do
   config.action_cable.url = "ws://localhost:3000/cable"
   config.action_cable.allowed_request_origins = [ /http:\/\/localhost.*/ ]
   config.hosts << /.*\.ngrok-free\.app/
+  config.hosts << "collab-code-editor-vto1.onrender.com"
 
   # config/environments/development.rb
   config.action_mailer.delivery_method = :smtp
