@@ -58,11 +58,15 @@ RUN mkdir -p tmp/pids tmp/cache tmp/sockets log storage && \
     if [ -f bin/rails ]; then chmod +x bin/rails; fi && \
     if [ -f bin/docker-entrypoint ]; then chmod +x bin/docker-entrypoint; fi
 
-# Precompile assets for development (with dummy secret key)
-RUN SECRET_KEY_BASE=dummy RAILS_ENV=development bundle exec rails assets:precompile
+# For development, don't precompile assets - let Rails handle them dynamically
+# If you need precompilation, uncomment the next line and fix JavaScript issues first
+# RUN SECRET_KEY_BASE=dummy RAILS_ENV=development bundle exec rails assets:precompile
 
 # Expose port
 EXPOSE 3000
+
+# Use entrypoint for better container management
+ENTRYPOINT ["./bin/docker-entrypoint"]
 
 # Default command for development
 CMD ["bundle", "exec", "rails", "server", "-b", "0.0.0.0"]
