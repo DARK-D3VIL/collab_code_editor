@@ -44,7 +44,7 @@ RUN bundle config set --local path '/usr/local/bundle' && \
 COPY package*.json yarn.lock* ./
 RUN if [ -f package.json ]; then \
         if [ -f yarn.lock ]; then \
-            yarn install --frozen-lockfile; \
+            yarn install; \
         else \
             npm install; \
         fi \
