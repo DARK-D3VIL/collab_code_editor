@@ -41,26 +41,30 @@ RUN bundle config set --local path '/usr/local/bundle' && \
     rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git
 
 # Copy package files if they exist
-COPY package*.json yarn.lock* ./
+COPY package*.json ./
 RUN if [ -f package.json ]; then \
-        if [ -f yarn.lock ]; then \
-            yarn install; \
-        else \
-            npm install; \
-        fi \
+        npm install; \
     fi
 
 # Copy the rest of the application
 COPY . .
 
 # Create necessary directories and set permissions
-RUN mkdir -p tmp/pids tmp/cache tmp/sockets log storage && \
+RUN mkdir -p tmp/pids tmp/cache tmp/sockets log storage app/assets/builds && \
     if [ -f bin/rails ]; then chmod +x bin/rails; fi && \
     if [ -f bin/docker-entrypoint ]; then chmod +x bin/docker-entrypoint; fi
 
-# For development, don't precompile assets - let Rails handle them dynamically
-# If you need precompilation, uncomment the next line and fix JavaScript issues first
-# RUN SECRET_KEY_BASE=dummy RAILS_ENV=development bundle exec rails assets:precompile
+# Build assets during Docker build
+RUN if [ -f "package.json" ]; then \
+        echo "Building CSS assets..." && \
+        yarn build:css && \
+        echo "Building JS assets..." && \
+        yarn build && \
+        echo "Assets built successfully"; \
+    fi
+
+# Precompile Rails assets
+RUN SECRET_KEY_BASE=dummy RAILS_ENV=development bundle exec rails assets:precompile
 
 # Expose port
 EXPOSE 3000
