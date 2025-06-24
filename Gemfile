@@ -66,7 +66,6 @@ end
 gem "dotenv-rails"
 gem "devise"
 gem "rugged", "~> 1.9.0"
-gem "webpacker"
 gem "bullet"
 gem "bootstrap"
 gem "simple_form"
