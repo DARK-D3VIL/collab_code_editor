@@ -58,6 +58,9 @@ RUN mkdir -p tmp/pids tmp/cache tmp/sockets log storage && \
     if [ -f bin/rails ]; then chmod +x bin/rails; fi && \
     if [ -f bin/docker-entrypoint ]; then chmod +x bin/docker-entrypoint; fi
 
+# Precompile assets for development (with dummy secret key)
+RUN SECRET_KEY_BASE=dummy RAILS_ENV=development bundle exec rails assets:precompile
+
 # Expose port
 EXPOSE 3000
 
