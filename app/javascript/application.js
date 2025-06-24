@@ -3,7 +3,7 @@ import "./channels"
 import 'bootstrap'
 import Rails from "@rails/ujs"
 import "@hotwired/turbo-rails"
-import "controllers"
+import "./controllers"
 import * as ActionCable from "@rails/actioncable"
 window.ActionCable = ActionCable
 Rails.start()
