@@ -1,7 +1,6 @@
 # 🚀 Collaborative Code Editor
 
 [![Ruby on Rails](https://img.shields.io/badge/Rails-7.2+-red.svg)](https://rubyonrails.org/)
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![Docker](https://img.shields.io/badge/Docker-Supported-blue.svg)](https://www.docker.com/)
 
 A real-time collaborative code editor with AI-powered completion features, designed for seamless team development experiences.
