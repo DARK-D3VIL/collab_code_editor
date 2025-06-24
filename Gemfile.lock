@@ -105,6 +105,7 @@ GEM
     crass (1.0.6)
     cssbundling-rails (1.4.3)
       railties (>= 6.0.0)
+    csv (3.3.5)
     date (3.4.1)
     debug (1.11.0)
       irb (~> 1.10)
@@ -138,8 +139,9 @@ GEM
     globalid (1.2.1)
       activesupport (>= 6.1)
     hashie (5.0.0)
-    httparty (0.20.0)
-      mime-types (~> 3.0)
+    httparty (0.23.1)
+      csv
+      mini_mime (>= 1.0.0)
       multi_xml (>= 0.5.2)
     i18n (1.14.7)
       concurrent-ruby (~> 1.0)
@@ -173,10 +175,6 @@ GEM
       net-smtp
     marcel (1.0.4)
     matrix (0.4.3)
-    mime-types (3.7.0)
-      logger
-      mime-types-data (~> 3.2025, >= 3.2025.0507)
-    mime-types-data (3.2025.0617)
     mini_mime (1.1.5)
     minitest (5.25.5)
     msgpack (1.8.0)
@@ -410,7 +408,7 @@ DEPENDENCIES
   devise
   dotenv-rails
   error_highlight (>= 0.4.0)
-  httparty (~> 0.20.0)
+  httparty (~> 0.23.1)
   importmap-rails (~> 2.1)
   jbuilder
   jsbundling-rails

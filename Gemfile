@@ -21,7 +21,7 @@ gem "jbuilder"
 # Use Redis adapter to run Action Cable in production
 gem "redis", "~> 5.0"
 gem "actioncable", "~> 7.0"
-gem "httparty", "~> 0.20.0" # For making HTTP requests to external APIs
+gem "httparty", "~> 0.23.1" # For making HTTP requests to external APIs
 
 # Use Kredis to get higher-level data types in Redis [https://github.com/rails/kredis]
 # gem "kredis"
