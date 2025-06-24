@@ -108,6 +108,8 @@ Rails.application.routes.draw do
         post :commit
       end
     end
+
+    # Project version control Routes
     get    "git",                         to: "project_git#show",            as: :git
     get    "git/branches",                to: "project_git#branches",        as: :git_branches
     post   "git/branches",                to: "project_git#create_branch"
@@ -118,6 +120,12 @@ Rails.application.routes.draw do
     post   "git/branches/:id/merge",      to: "project_git#merge",          as: :git_merge_branch
     delete "git/branches/:id",            to: "project_git#destroy_branch", as: :git_branch
     post "git/branches/:id/revert", to: "project_git#revert", as: :git_branch_revert
+
+    # Project Settings Routes
+    get "settings", to: "project_settings#show", as: :settings
+    patch "settings", to: "project_settings#update"
+    delete "settings", to: "project_settings#destroy"
+    get "settings/ai_training_status", to: "project_settings#ai_training_status", as: :ai_training_status
   end
   match "/404", to: "errors#not_found", via: :all
   match "/422", to: "errors#unprocessable_entity", via: :all

@@ -1,7 +1,8 @@
 module ProjectGitHelper
-  def sidebar_link_class(name)
+  def sidebar_link_class(name, controllername)
     current_action = action_name
-    "nav-link #{"active fw-bold text-primary" if current_action == name}"
+    current_controller = controller_name
+    "nav-link #{"active fw-bold text-primary" if current_action == name && current_controller == controllername}"
   end
 
   def current_branch_id

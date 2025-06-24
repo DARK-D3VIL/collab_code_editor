@@ -3,7 +3,7 @@
   <div class="position-sticky p-4">
     <h5 class="fw-bold text-primary mb-4">Project Navigation</h5>
     <ul class="nav flex-column">
-      <% if controller_name.in?(%w[project_files project_git project_members github]) && defined?(@project) %>
+      <% if controller_name.in?(%w[project_files project_git project_members github project_settings]) && defined?(@project) %>
         
         <!-- Files Section -->
         <li class="nav-item mb-2">
@@ -25,17 +25,17 @@
           <div class="dropdown-menu-expandable #{controller_name.in?(%w[project_git github]) ? 'expanded' : ''}">
             <ul class="nav flex-column">
               <li class="nav-item">
-                <%= link_to project_git_path(@project), class: "#{sidebar_link_class('show')} nav-link d-flex align-items-center sidebar-sublink" do %>
+                <%= link_to project_git_path(@project), class: "#{sidebar_link_class('show', 'project_git')} nav-link d-flex align-items-center sidebar-sublink" do %>
                   <i class="bi bi-git me-2 sidebar-subicon"></i> History
                 <% end %>
               </li>
               <li class="nav-item">
-                <%= link_to project_git_branches_path(@project), class: "#{sidebar_link_class('branches')} nav-link d-flex align-items-center sidebar-sublink" do %>
+                <%= link_to project_git_branches_path(@project), class: "#{sidebar_link_class('branches', 'project_git')} nav-link d-flex align-items-center sidebar-sublink" do %>
                   <i class="bi bi-diagram-3 me-2 sidebar-subicon"></i> Branches
                 <% end %>
               </li>
               <li class="nav-item">
-                <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: "#{sidebar_link_class('commits')} nav-link d-flex align-items-center sidebar-sublink" do %>
+                <%= link_to project_git_branch_commits_path(@project, id: current_branch_id), class: "#{sidebar_link_class('commits', 'project_git')} nav-link d-flex align-items-center sidebar-sublink" do %>
                   <i class="bi bi-journal-text me-2 sidebar-subicon"></i> Commits
                 <% end %>
               </li>
@@ -46,7 +46,7 @@
                 <small class="text-muted fw-bold sidebar-section-title ps-3">GITHUB</small>
               </li>
               <li class="nav-item">
-                <%= link_to github_project_sync_path(@project), class: "#{sidebar_link_class('sync')} nav-link d-flex align-items-center position-relative sidebar-sublink" do %>
+                <%= link_to github_project_sync_path(@project), class: "#{sidebar_link_class('sync', 'github')} nav-link d-flex align-items-center position-relative sidebar-sublink" do %>
                   <i class="bi bi-github me-2 sidebar-subicon"></i>
                   <span>Sync</span>
                   <% if !github_token_valid? %>
@@ -62,11 +62,16 @@
           </div>
         </li>
         
-        <!-- Members Section -->
         <% if current_user == @project.owner %>
+          <!-- Members Section -->
           <li class="nav-item mb-2">
             <%= link_to project_project_members_path(@project), class: "nav-link d-flex align-items-center sidebar-link #{controller_name == 'project_members' ? 'active' : ''}" do %>
               <i class="bi bi-people me-2 sidebar-icon"></i> Members
+            <% end %>
+          </li>
+          <li class="nav-item mb-2">
+            <%= link_to project_settings_path(@project), class: "nav-link d-flex align-items-center sidebar-link #{controller_name == 'project_settings' ? 'active' : ''}" do %>
+              <i class="bi bi-gear me-2 sidebar-icon"></i> Settings
             <% end %>
           </li>
         <% end %>

@@ -82,29 +82,61 @@ class AiCompletionService
               'error_message' => data['error_message'] || ''
             }
             
-            Rails.logger.info "   Status: #{status_info['status']}"
-            Rails.logger.info "   Progress: #{status_info['progress']}%"
+            Rails.logger.info "   ✅ Status: #{status_info['status']}"
+            Rails.logger.info "   📊 Progress: #{status_info['progress']}%"
+            Rails.logger.info "   💬 Message: #{status_info['message']}" if status_info['message'].present?
+            Rails.logger.info "   ❌ Error: #{status_info['error_message']}" if status_info['error_message'].present?
             
             return status_info
           else
-            Rails.logger.error "   Invalid response format - missing job_id field"
+            Rails.logger.error "   ❌ Invalid response format - missing job_id field"
+            Rails.logger.error "   📝 Response keys: #{data.keys}" if data.is_a?(Hash)
             return nil
           end
+        elsif response.code == '404'
+          Rails.logger.error "   🔍 Job not found in AI service (404)"
+          return nil
         else
-          Rails.logger.error "   Status check HTTP error: #{response.code}"
+          Rails.logger.error "   ❌ Status check HTTP error: #{response.code} #{response.message}"
+          Rails.logger.error "   📝 Response body: #{response.body}"
           return nil
         end
         
       rescue Timeout::Error => e
-        Rails.logger.error "   Status check timeout: #{e.message}"
+        Rails.logger.error "   ⏰ Status check timeout: #{e.message}"
         return nil
       rescue Errno::ECONNREFUSED => e
-        Rails.logger.error "   Connection failed: #{e.message}"
+        Rails.logger.error "   🔌 Connection failed: #{e.message}"
+        return nil
+      rescue JSON::ParserError => e
+        Rails.logger.error "   📄 JSON parse error: #{e.message}"
+        Rails.logger.error "   📝 Raw response: #{response&.body}"
         return nil
       rescue => e
-        Rails.logger.error "   Unexpected error: #{e.class} - #{e.message}"
+        Rails.logger.error "   💥 Unexpected error: #{e.class} - #{e.message}"
+        Rails.logger.error "   📚 Backtrace: #{e.backtrace.first(3).join('\n   ')}"
         return nil
       end
+    end
+    
+    # Add a manual status check method for debugging
+    def debug_job_status(job_id)
+      puts "🔍 Debug: Checking status for job #{job_id}"
+      
+      status_info = check_training_status(job_id)
+      
+      if status_info
+        puts "✅ Job found:"
+        puts "   Job ID: #{status_info['job_id']}"
+        puts "   Status: #{status_info['status']}"
+        puts "   Progress: #{status_info['progress']}%"
+        puts "   Message: #{status_info['message']}"
+        puts "   Error: #{status_info['error_message']}" if status_info['error_message'].present?
+      else
+        puts "❌ Job not found or error occurred"
+      end
+      
+      status_info
     end
     
     def start_training(project_id, repository_path, force_retrain: false)

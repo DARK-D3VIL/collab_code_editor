@@ -11,7 +11,7 @@ class User < ApplicationRecord
   has_many :projects, through: :project_memberships
   has_many :owned_projects, class_name: "Project", foreign_key: "owner_id", dependent: :destroy
   has_many :project_join_requests, dependent: :destroy
-  has_many :conflict_queues, dependent: :destroy
+  has_many :ai_training_jobs, dependent: :destroy
 
   validates :username, presence: true
 

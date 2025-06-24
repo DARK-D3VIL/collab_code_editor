@@ -13,6 +13,7 @@ class Project < ApplicationRecord
   has_many :branches, dependent: :destroy
   has_many :files, class_name: "ProjectFile", dependent: :destroy
   has_many :conflict_queues, dependent: :destroy
+  has_many :ai_training_jobs, dependent: :destroy
 
   # Add permission checking method
   def can_user_access?(user, permission = :read)
@@ -58,21 +59,36 @@ class Project < ApplicationRecord
   def training_in_progress?
     %w[queued training].include?(ai_training_status)
   end
-  
+
   def start_ai_training!(user, force_retrain: false)
-    return false unless can_start_ai_training? || force_retrain
-    
+    # Allow force retraining even if training is not normally available
+    if force_retrain
+      Rails.logger.info "🔄 Force retraining requested for project #{id}"
+      
+      # Cancel any existing training jobs that might be running
+      cancel_existing_training_jobs
+      
+      # Reset the project status
+      update!(
+        ai_training_status: 'not_started',
+        ai_model_trained_at: nil
+      )
+    elsif !can_start_ai_training?
+      Rails.logger.error "Cannot start AI training for project #{id}: #{ai_training_status}"
+      return false
+    end
+
     # Check if AI service is available
     unless AiCompletionService.health_check
       Rails.logger.error "AI service is not available for project #{id}"
       return false
     end
-    
+
     repository_path = Rails.root.join("storage", "projects", "project_#{id}").to_s
-    
+
     # Start training via AI service
     job_data = AiCompletionService.start_training(id, repository_path, force_retrain: force_retrain)
-    
+
     if job_data
       # Create local tracking record
       training_job = ai_training_jobs.create!(
@@ -81,21 +97,33 @@ class Project < ApplicationRecord
         status: job_data['status'] || 'queued',
         started_at: Time.current
       )
-      
+
       # Update project status
       update!(
         ai_training_status: 'queued',
         ai_model_trained_at: nil
       )
-      
+
       # Start background job to monitor progress
       AiTrainingMonitorJob.perform_later(training_job.id)
-      
-      Rails.logger.info "AI training started for project #{id}: #{job_data['job_id']}"
+
+      Rails.logger.info "AI training started for project #{id}: #{job_data['job_id']} (force_retrain: #{force_retrain})"
       training_job
     else
       Rails.logger.error "Failed to start AI training for project #{id}"
       nil
+    end
+  end
+
+  def cancel_existing_training_jobs
+    # Mark any existing in-progress jobs as cancelled/failed
+    ai_training_jobs.where(status: ['queued', 'running']).each do |job|
+      job.update!(
+        status: 'failed',
+        error_message: 'Cancelled due to new training request',
+        completed_at: Time.current
+      )
+      Rails.logger.info "Cancelled existing training job #{job.job_id}"
     end
   end
   
