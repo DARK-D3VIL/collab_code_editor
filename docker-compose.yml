@@ -45,7 +45,7 @@ services:
   web:
     build: 
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: rails_app
     command: >
       bash -c "
@@ -81,7 +81,7 @@ services:
   sidekiq:
     build: 
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: rails_sidekiq
     command: >
       bash -c "
