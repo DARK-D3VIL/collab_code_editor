@@ -70,7 +70,7 @@ gem "bullet"
 gem "bootstrap"
 gem "simple_form"
 
-gem "importmap-rails", "~> 2.1"
+gem "importmap-rails", "~> 2.2"
 # Gemfile
 gem "omniauth-github"
 gem "octokit" # For GitHub API
